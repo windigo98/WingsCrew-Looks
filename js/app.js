@@ -573,6 +573,7 @@ function wishCard(record) {
     ${choice ? `<p>First choice: ${escapeHtml(choice)}</p>` : ""}
     ${altText ? `<p class="hint">Also OK: ${escapeHtml(altText)}</p>` : ""}
     ${record.fitNotes ? `<p class="hint">${escapeHtml(record.fitNotes)}</p>` : ""}
+    ${nearby?.address ? `<p>${escapeHtml([nearby.store, nearby.address].filter(Boolean).join(" · "))}</p>` : ""}
     ${record.jewelry ? `<p class="hint">${escapeHtml([record.jewelry.metal, record.jewelry.finishStone, record.jewelry.sizeOrLength].filter(Boolean).join(" · "))}</p>` : ""}
     <div class="card-actions">
       ${online?.url ? `<a class="btn ghost small" href="${escapeHtml(online.url)}" target="_blank" rel="noopener noreferrer">View item</a>` : ""}
@@ -915,7 +916,7 @@ function openSaveSheet({ thenVote = false } = {}) {
       </label>
       <p class="hint">Occasion</p>
       <div class="row" style="margin-bottom:14px">
-        ${OCCASIONS.map((occasion) => `<button type="button" class="chip ${occasion.id === state.studio.occasion ? "active" : ""}" data-action="pick-occasion" data-occasion="${occasion.id}">${escapeHtml(occasion.label)}</button>`).join("")}
+        ${OCCASIONS.map((occasion) => `<label class="chip"><input type="radio" name="occasion" value="${occasion.id}" ${occasion.id === state.studio.occasion ? "checked" : ""}>${escapeHtml(occasion.label)}</label>`).join("")}
       </div>
       <button type="submit" class="btn full">${thenVote ? "Save and open the vote" : "Save look"}</button>
     </form>`);
@@ -923,9 +924,11 @@ function openSaveSheet({ thenVote = false } = {}) {
     event.preventDefault();
     const button = event.target.querySelector("button[type=submit]");
     button.disabled = true;
-    const name = String(new FormData(event.target).get("name") || "").trim() || "Untitled look";
+    const data = new FormData(event.target);
+    const name = String(data.get("name") || "").trim() || "Untitled look";
+    const occasion = String(data.get("occasion") || state.studio.occasion || "everyday");
     try {
-      const look = await saveLook({ name, occasion: state.studio.occasion });
+      const look = await saveLook({ name, occasion });
       closeSheet();
       showToast("Look saved on this device");
       if (thenVote) go(`vote/${look.id}`);
@@ -1187,6 +1190,11 @@ function openWishSheet(source) {
       <label class="field">Category <select name="category">${options}</select></label>
       <label class="field">Store <input name="store" maxlength="80" value="${escapeHtml(form.store)}"></label>
       <label class="field">Price <input name="price" inputmode="decimal" maxlength="40" value="${escapeHtml(form.price)}" placeholder="$48"></label>
+      <h3 class="serif" style="font-size:22px;margin:8px 0">Buy nearby</h3>
+      <label class="field">Store name <input name="nearbyStore" maxlength="80" value="${escapeHtml(form.nearbyStore)}"></label>
+      <label class="field">Address <input name="address" maxlength="240" value="${escapeHtml(form.address)}" placeholder="100 Main St, Austin, TX"></label>
+      <p class="hint">An address adds an Open in Maps link.</p>
+      <label class="field">Note <input name="nearbyNote" maxlength="240" value="${escapeHtml(form.nearbyNote)}" placeholder="Saw it in stock, back left rack"></label>
       <label class="field">First-choice size <input name="sizeFirst" maxlength="40" value="${escapeHtml(form.sizeFirst)}" placeholder="M"></label>
       <label class="field">First-choice color <input name="colorFirst" maxlength="40" value="${escapeHtml(form.colorFirst)}" placeholder="Sage"></label>
       <label class="field">Also OK sizes <input name="altSizes" maxlength="80" value="${escapeHtml(form.altSizes)}" placeholder="L, XL"></label>
@@ -1194,10 +1202,6 @@ function openWishSheet(source) {
       <label class="field">Fit notes <textarea name="fitNotes" maxlength="500">${escapeHtml(form.fitNotes)}</textarea></label>
       <h3 class="serif" style="font-size:22px;margin:8px 0">Buy online</h3>
       <label class="field">Product link <input name="link" type="url" inputmode="url" value="${escapeHtml(form.link)}" placeholder="https://"></label>
-      <h3 class="serif" style="font-size:22px;margin:8px 0">Buy nearby</h3>
-      <label class="field">Store name <input name="nearbyStore" maxlength="80" value="${escapeHtml(form.nearbyStore)}"></label>
-      <label class="field">Address <input name="address" maxlength="240" value="${escapeHtml(form.address)}" placeholder="100 Main St, Austin, TX"></label>
-      <label class="field">Note <input name="nearbyNote" maxlength="240" value="${escapeHtml(form.nearbyNote)}" placeholder="Saw it in stock, back left rack"></label>
       <h3 class="serif" style="font-size:22px;margin:8px 0">Jewelry details</h3>
       <label class="field">Metal <input name="metal" maxlength="40" value="${escapeHtml(form.metal)}" placeholder="Gold"></label>
       <label class="field">Finish or stone <input name="finishStone" maxlength="80" value="${escapeHtml(form.finishStone)}"></label>

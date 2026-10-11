@@ -135,6 +135,7 @@ main {
 .stack { display: flex; flex-direction: column; gap: 10px; }
 
 .chip, .tag {
+  position: relative;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: #fff;
@@ -143,11 +144,12 @@ main {
   font-weight: 650;
   color: var(--ink);
 }
-.chip.active, .chip[aria-pressed="true"] {
+.chip.active, .chip[aria-pressed="true"], .chip:has(input:checked) {
   background: var(--ink);
   color: #fffdfb;
   border-color: var(--ink);
 }
+.chip input { position: absolute; opacity: 0; pointer-events: none; }
 .tag { display: inline-flex; padding: 4px 8px; font-size: 11px; border: 0; }
 .tag.wedding-guest { background: var(--gold-soft); color: #7a5a1e; }
 .tag.date-night { background: #f8e8f1; color: #8d3d62; }
