@@ -3,7 +3,7 @@ import { db } from "./db.js";
 import { downscaleImage, loadImage } from "./images.js";
 import { defaultPlacement, nextLayerZ } from "./placement.js";
 import { providers } from "./providers.js";
-import { clamp, escapeHtml, safeHttpUrl, uid } from "./util.js";
+import { clamp, escapeHtml, mapsSearchUrl, safeHttpUrl, uid } from "./util.js";
 import { buildWishlistRecord, firstChoice, wishlistToForm } from "./wishlist-model.js";
 
 const NAV = [
@@ -566,6 +566,7 @@ function wishCard(record) {
   }).filter(Boolean).join(", ");
   const online = record.places?.find((place) => place.kind === "online");
   const nearby = record.places?.find((place) => place.kind === "nearby");
+  const mapsUrl = nearby?.mapsUrl || (nearby?.address ? mapsSearchUrl(nearby.address) : "");
   const choice = [first?.size, first?.color].filter(Boolean).join(" · ");
   return `<article class="card">
     <div class="section-head"><h3>${escapeHtml(record.name)}</h3>${record.priceDisplay ? `<strong>${escapeHtml(record.priceDisplay)}</strong>` : ""}</div>
@@ -574,10 +575,10 @@ function wishCard(record) {
     ${altText ? `<p class="hint">Also OK: ${escapeHtml(altText)}</p>` : ""}
     ${record.fitNotes ? `<p class="hint">${escapeHtml(record.fitNotes)}</p>` : ""}
     ${nearby?.address ? `<p>${escapeHtml([nearby.store, nearby.address].filter(Boolean).join(" · "))}</p>` : ""}
+    ${mapsUrl ? `<a class="btn small" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener noreferrer">Open in Maps</a>` : ""}
     ${record.jewelry ? `<p class="hint">${escapeHtml([record.jewelry.metal, record.jewelry.finishStone, record.jewelry.sizeOrLength].filter(Boolean).join(" · "))}</p>` : ""}
     <div class="card-actions">
       ${online?.url ? `<a class="btn ghost small" href="${escapeHtml(online.url)}" target="_blank" rel="noopener noreferrer">View item</a>` : ""}
-      ${nearby?.mapsUrl ? `<a class="btn ghost small" href="${escapeHtml(nearby.mapsUrl)}" target="_blank" rel="noopener noreferrer">Open in Maps</a>` : ""}
       <button type="button" class="btn ghost small" data-action="edit-wish" data-id="${record.id}">Edit</button>
       <button type="button" class="btn ghost small" data-action="delete-wish" data-id="${record.id}">Delete</button>
     </div>
@@ -1192,7 +1193,7 @@ function openWishSheet(source) {
       <label class="field">Price <input name="price" inputmode="decimal" maxlength="40" value="${escapeHtml(form.price)}" placeholder="$48"></label>
       <h3 class="serif" style="font-size:22px;margin:8px 0">Buy nearby</h3>
       <label class="field">Store name <input name="nearbyStore" maxlength="80" value="${escapeHtml(form.nearbyStore)}"></label>
-      <label class="field">Address <input name="address" maxlength="240" value="${escapeHtml(form.address)}" placeholder="100 Main St, Austin, TX"></label>
+      <label class="field">Address <input name="address" maxlength="240" value="${escapeHtml(form.address)}" placeholder="Street, city"></label>
       <p class="hint">An address adds an Open in Maps link.</p>
       <label class="field">Note <input name="nearbyNote" maxlength="240" value="${escapeHtml(form.nearbyNote)}" placeholder="Saw it in stock, back left rack"></label>
       <label class="field">First-choice size <input name="sizeFirst" maxlength="40" value="${escapeHtml(form.sizeFirst)}" placeholder="M"></label>

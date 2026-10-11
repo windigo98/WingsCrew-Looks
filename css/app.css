@@ -220,6 +220,7 @@ main {
 }
 .meta-line { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
 .card-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.card > a.btn { display: inline-flex; align-items: center; margin: 8px 0 4px; }
 
 .sample-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 
