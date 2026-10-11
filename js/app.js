@@ -219,15 +219,17 @@ async function reload() {
 
 function renderShell() {
   document.getElementById("app").innerHTML = `
-    <header class="header" id="header">
-      <div class="brand">${wingSvg("brand-mark")}<h1>WingsCrew Looks</h1></div>
-      <button type="button" class="icon-btn" data-action="about" aria-label="About and privacy">i</button>
-    </header>
-    <main id="view"></main>
-    <nav class="nav" id="nav">${NAV.map(([path, label, svg]) => `<button type="button" data-action="go" data-route="${path}">${svg}<span>${label}</span></button>`).join("")}</nav>
+    <div class="shell">
+      <header class="header" id="header">
+        <div class="brand">${wingSvg("brand-mark")}<h1>WingsCrew Looks</h1></div>
+        <button type="button" class="icon-btn" data-action="about" aria-label="About and privacy">i</button>
+      </header>
+      <main id="view"></main>
+      <nav class="nav" id="nav">${NAV.map(([path, label, svg]) => `<button type="button" data-action="go" data-route="${path}">${svg}<span>${label}</span></button>`).join("")}</nav>
+      <div id="toast" class="toast" hidden role="status"></div>
+    </div>
     <div id="sheet-root" class="sheet-root" hidden></div>
     <div id="confirm-root" class="confirm-root" hidden></div>
-    <div id="toast" class="toast" hidden role="status"></div>
     <input id="file-cam" type="file" accept="image/*" capture="environment" hidden>
     <input id="file-lib" type="file" accept="image/*" hidden>`;
   document.getElementById("file-cam").addEventListener("change", onPickedFile);
