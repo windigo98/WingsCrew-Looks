@@ -1,9 +1,10 @@
 import { clamp, uid } from "./util.js";
 
 /**
- * Local makeup presets. These are drawing instructions for the on-device painter.
- * A future provider (Perfect Corp, Gemini, or similar) can replace them with a generated image.
- * Offsets are tuned for a face-filling photo, then scaled down for full-body poses.
+ * Local makeup presets. Stamps are drawn on the face only.
+ * A future provider can replace apply() with a generated image.
+ * dx and dy are offsets in face radii (1 = the edge of the face oval).
+ * scale is a fraction of the face height.
  */
 export const MAKEUP_PRESETS = [
   {
@@ -12,33 +13,29 @@ export const MAKEUP_PRESETS = [
     blurb: "Just the photo",
     swatch: "#f3ebe3",
     grade: null,
-    vignette: 0,
     stamps: [],
   },
   {
     id: "natural",
     name: "Natural",
-    blurb: "Soft warmth",
+    blurb: "Soft warmth on the cheeks",
     swatch: "#e7b49a",
-    grade: { blend: "soft-light", color: "rgb(255, 190, 164)", alpha: 0.42 },
-    vignette: 0.08,
+    grade: { color: "rgb(255, 196, 170)", alpha: 0.28 },
     stamps: [
-      { kind: "blush", color: "rgba(206, 92, 102, 0.62)", dx: -0.13, dy: 0.08, scale: 0.15 },
-      { kind: "blush", color: "rgba(206, 92, 102, 0.62)", dx: 0.13, dy: 0.08, scale: 0.15 },
+      { kind: "blush", color: "rgba(206, 92, 102, 0.55)", dx: -0.42, dy: 0.22, scale: 0.26 },
+      { kind: "blush", color: "rgba(206, 92, 102, 0.55)", dx: 0.42, dy: 0.22, scale: 0.26 },
     ],
   },
   {
     id: "glam",
     name: "Glam",
-    blurb: "Glow and color",
+    blurb: "Cheek color and a lip",
     swatch: "#e7a0b5",
-    grade: { blend: "soft-light", color: "rgb(255, 206, 186)", alpha: 0.55 },
-    vignette: 0.14,
+    grade: { color: "rgb(255, 206, 186)", alpha: 0.22 },
     stamps: [
-      { kind: "highlight", color: "rgba(255, 246, 224, 0.95)", dx: 0, dy: -0.01, scale: 0.11 },
-      { kind: "blush", color: "rgba(214, 78, 116, 0.7)", dx: -0.14, dy: 0.08, scale: 0.16 },
-      { kind: "blush", color: "rgba(214, 78, 116, 0.7)", dx: 0.14, dy: 0.08, scale: 0.16 },
-      { kind: "lip", color: "rgba(168, 36, 72, 0.92)", dx: 0, dy: 0.08, scale: 0.07 },
+      { kind: "blush", color: "rgba(214, 78, 116, 0.6)", dx: -0.4, dy: 0.2, scale: 0.28 },
+      { kind: "blush", color: "rgba(214, 78, 116, 0.6)", dx: 0.4, dy: 0.2, scale: 0.28 },
+      { kind: "lip", color: "rgba(168, 36, 72, 0.92)", dx: 0, dy: 0.64, scale: 0.14 },
     ],
   },
   {
@@ -46,22 +43,20 @@ export const MAKEUP_PRESETS = [
     name: "Bold lip",
     blurb: "A strong lip",
     swatch: "#9d2344",
-    grade: { blend: "soft-light", color: "rgb(255, 176, 164)", alpha: 0.32 },
-    vignette: 0.1,
+    grade: null,
     stamps: [
-      { kind: "lip", color: "rgba(154, 16, 48, 0.95)", dx: 0, dy: 0.08, scale: 0.072 },
+      { kind: "lip", color: "rgba(154, 16, 48, 0.95)", dx: 0, dy: 0.64, scale: 0.15 },
     ],
   },
   {
     id: "smoky",
     name: "Smoky eye",
-    blurb: "Cool and smoky",
+    blurb: "Color on the eyes",
     swatch: "#3c3450",
-    grade: { blend: "soft-light", color: "rgb(156, 164, 190)", alpha: 0.48 },
-    vignette: 0.42,
+    grade: null,
     stamps: [
-      { kind: "shadow", color: "rgba(42, 34, 58, 0.8)", dx: -0.105, dy: 0.005, scale: 0.12 },
-      { kind: "shadow", color: "rgba(42, 34, 58, 0.8)", dx: 0.105, dy: 0.005, scale: 0.12 },
+      { kind: "shadow", color: "rgba(42, 34, 58, 0.75)", dx: -0.36, dy: -0.08, scale: 0.18 },
+      { kind: "shadow", color: "rgba(42, 34, 58, 0.75)", dx: 0.36, dy: -0.08, scale: 0.18 },
     ],
   },
 ];
@@ -78,28 +73,35 @@ export function getPreset(id) {
 }
 
 /**
- * Face-space offsets are scaled down on full-body poses.
- * Vertical scale is smaller than horizontal because the head is a short slice of a tall photo.
+ * Where the face sits on a guided pose, as fractions of the photo.
+ * null means we do not know, and makeup must not be drawn.
+ * Full-body numbers match the demo drawings (chin near 0.29).
  */
-export function slotMetrics(slot) {
-  if (slot === "face" || slot === "demo-face") return { mx: 1, my: 1, anchor: { x: 0.5, y: 0.435 }, size: 1 };
-  if (slot === "side" || slot === "demo-side") return { mx: 0.34, my: 0.28, anchor: { x: 0.57, y: 0.172 }, size: 0.32 };
-  if (slot === "front" || slot === "demo-front") return { mx: 0.28, my: 0.28, anchor: { x: 0.5, y: 0.172 }, size: 0.26 };
-  return { mx: 0.3, my: 0.22, anchor: { x: 0.5, y: 0.2 }, size: 0.3 };
+export function faceMetrics(slot) {
+  if (slot === "face" || slot === "demo-face") return { cx: 0.5, cy: 0.44, rx: 0.24, ry: 0.2 };
+  if (slot === "side" || slot === "demo-side") return { cx: 0.6, cy: 0.2, rx: 0.12, ry: 0.08 };
+  if (slot === "front" || slot === "demo-front") return { cx: 0.5, cy: 0.1975, rx: 0.16, ry: 0.09 };
+  return null;
+}
+
+export function hasFaceAnchor(slot) {
+  return Boolean(faceMetrics(slot));
 }
 
 export function buildStamps(presetId, slot) {
   const preset = getPreset(presetId);
-  const { mx, my, anchor, size } = slotMetrics(slot);
+  const face = faceMetrics(slot);
+  if (!face || preset.id === "none") return [];
+  const faceHeight = face.ry * 2;
   return preset.stamps.map((stamp, index) => ({
     id: uid("stamp"),
     kind: "stamp",
     stampKind: stamp.kind,
     color: stamp.color,
     name: STAMP_NAMES[stamp.kind] || "Makeup",
-    x: clamp(anchor.x + stamp.dx * mx, 0.02, 0.98),
-    y: clamp(anchor.y + stamp.dy * my, 0.02, 0.96),
-    scale: stamp.scale * size,
+    x: clamp(face.cx + stamp.dx * face.rx, 0.02, 0.98),
+    y: clamp(face.cy + stamp.dy * face.ry, 0.02, 0.98),
+    scale: stamp.scale * faceHeight,
     rotation: 0,
     flip: 1,
     z: 200 + index,

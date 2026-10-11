@@ -1,25 +1,35 @@
-/** Default sticker placement, as fractions of the photo. */
-export function defaultPlacement(category) {
-  switch (category) {
-    case "top":
-      return { x: 0.5, y: 0.36, scale: 0.92 };
-    case "bottom":
-      return { x: 0.5, y: 0.7, scale: 1 };
-    case "dress":
-      return { x: 0.5, y: 0.5, scale: 1.15 };
-    case "outerwear":
-      return { x: 0.5, y: 0.4, scale: 1.12 };
-    case "shoes":
-      return { x: 0.5, y: 0.9, scale: 0.58 };
-    case "hat":
-      return { x: 0.5, y: 0.1, scale: 0.5 };
-    case "bag":
-      return { x: 0.73, y: 0.56, scale: 0.4 };
-    case "jewelry":
-      return { x: 0.5, y: 0.22, scale: 0.38 };
-    default:
-      return { x: 0.5, y: 0.48, scale: 0.8 };
+/**
+ * Default sticker placement.
+ * x and y are the center of the piece, as fractions of the photo.
+ * scale is the piece's height as a fraction of the photo height.
+ * Full-body anchors keep clothes below the chin. A face close-up
+ * parks clothes under the chin so they do not cover the face.
+ */
+export const PLACEMENT_VERSION = 2;
+
+const FULL_BODY = {
+  top: { x: 0.5, y: 0.46, scale: 0.18 },
+  bottom: { x: 0.5, y: 0.72, scale: 0.34 },
+  dress: { x: 0.5, y: 0.58, scale: 0.48 },
+  outerwear: { x: 0.5, y: 0.48, scale: 0.22 },
+  shoes: { x: 0.5, y: 0.915, scale: 0.06 },
+  hat: { x: 0.5, y: 0.07, scale: 0.08 },
+  bag: { x: 0.74, y: 0.52, scale: 0.15 },
+  jewelry: { x: 0.5, y: 0.2, scale: 0.05 },
+  accessory: { x: 0.5, y: 0.5, scale: 0.14 },
+};
+
+export function defaultPlacement(category, slot) {
+  if (slot === "face" || slot === "demo-face") {
+    if (category === "hat") return { x: 0.5, y: 0.14, scale: 0.14 };
+    if (category === "jewelry") return { x: 0.5, y: 0.58, scale: 0.1 };
+    return { x: 0.5, y: 0.88, scale: 0.14 };
   }
+  const place = FULL_BODY[category] || { x: 0.5, y: 0.5, scale: 0.2 };
+  if (slot === "side" || slot === "demo-side") {
+    return { ...place, x: category === "bag" ? 0.78 : place.x === 0.5 ? 0.56 : place.x };
+  }
+  return { ...place };
 }
 
 export function nextLayerZ(layers, category) {

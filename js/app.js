@@ -1,7 +1,8 @@
-import { CATEGORIES, DEMO_POSES, OCCASIONS, PHOTO_SLOTS, SAMPLES, categoryLabel, occasionLabel, sampleById, sortPhotos } from "./catalog.js";
+import { CATEGORIES, DEMO_ART_VERSION, DEMO_POSES, OCCASIONS, PHOTO_SLOTS, SAMPLES, categoryLabel, occasionLabel, sampleById, sortPhotos } from "./catalog.js";
 import { db } from "./db.js";
 import { downscaleImage, loadImage } from "./images.js";
-import { defaultPlacement, nextLayerZ } from "./placement.js";
+import { buildStamps, hasFaceAnchor } from "./makeup.js";
+import { PLACEMENT_VERSION, defaultPlacement, nextLayerZ } from "./placement.js";
 import { providers } from "./providers.js";
 import { clamp, escapeHtml, mapsSearchUrl, safeHttpUrl, uid } from "./util.js";
 import { buildWishlistRecord, firstChoice, wishlistToForm } from "./wishlist-model.js";
@@ -65,6 +66,7 @@ function emptyStudio() {
     occasion: "everyday",
     lookId: null,
     dirty: false,
+    placementVersion: PLACEMENT_VERSION,
   };
 }
 
@@ -117,16 +119,24 @@ function mediaUrl(key, blob) {
   return url;
 }
 
+function hideToast() {
+  const toast = document.getElementById("toast");
+  if (!toast) return;
+  toast.classList.remove("show");
+  toast.hidden = true;
+}
+
 function showToast(message, { undo } = {}) {
   const toast = document.getElementById("toast");
   if (!toast) return;
   toast.hidden = false;
+  toast.classList.add("show");
   toast.innerHTML = `<span>${escapeHtml(message)}</span>${undo ? `<button type="button" data-undo>Undo</button>` : ""}`;
   clearTimeout(toastTimer);
   const undoFn = undo;
   toast.querySelector("[data-undo]")?.addEventListener("click", async () => {
     clearTimeout(toastTimer);
-    toast.hidden = true;
+    hideToast();
     try {
       await undoFn();
       await reload();
@@ -135,7 +145,7 @@ function showToast(message, { undo } = {}) {
       showToast(error.message || "Could not undo that.");
     }
   });
-  toastTimer = setTimeout(() => { toast.hidden = true; }, undo ? 6000 : 2600);
+  toastTimer = setTimeout(hideToast, undo ? 4200 : 2200);
 }
 
 function askConfirm({ title, body, confirmLabel, danger }) {
@@ -188,6 +198,7 @@ function saveDraft() {
     occasion: studio.occasion,
     lookId: studio.lookId,
     dirty: studio.dirty,
+    placementVersion: PLACEMENT_VERSION,
   }).catch(() => {});
 }
 
@@ -252,10 +263,14 @@ async function init() {
     state.profile = await db.getMeta("profile");
     state.dismissedRibbon = Boolean(await db.getMeta("ribbon"));
     await reload();
+    await refreshDemoArt();
     const draft = await db.getMeta("draft");
     if (draft?.layers) state.studio = { ...emptyStudio(), ...draft, layers: draft.layers || [] };
     if (!state.photos.some((photo) => photo.id === state.studio.photoId)) {
       state.studio.photoId = state.photos.find((photo) => !photo.demo)?.id || state.photos[0]?.id || null;
+    }
+    if (state.studio.placementVersion !== PLACEMENT_VERSION) {
+      state.studio = reseatStudio(state.studio);
     }
   } catch (error) {
     state.error = error?.message || "This browser blocked on-device storage.";
@@ -264,8 +279,21 @@ async function init() {
   render();
 }
 
+function reseatStudio(studio) {
+  const photo = state.photos.find((item) => item.id === studio.photoId);
+  const slot = photo?.slot || "front";
+  const items = (studio.layers || []).filter((layer) => layer.kind !== "stamp").map((layer) => ({
+    ...layer,
+    ...defaultPlacement(layer.category, slot),
+    rotation: 0,
+  }));
+  const stamps = studio.makeupId && studio.makeupId !== "none" ? buildStamps(studio.makeupId, slot) : [];
+  return { ...studio, layers: [...items, ...stamps], placementVersion: PLACEMENT_VERSION };
+}
+
 function render() {
   if (!state.ready) return;
+  document.body.classList.toggle("in-studio", parseRoute().path === "dress");
   pointers.clear();
   gesture = null;
   const header = document.getElementById("header");
@@ -452,7 +480,7 @@ function studioHtml() {
         <div class="scroller">
           ${presets.map((preset) => `<button type="button" class="makeup-btn ${preset.id === state.studio.makeupId ? "active" : ""}" data-action="makeup" data-id="${preset.id}"><i class="swatch" style="background:${preset.swatch}"></i>${escapeHtml(preset.name)}</button>`).join("")}
         </div>
-        ${state.studio.makeupId !== "none" ? `<label>Strength <b>${Math.round(state.studio.strength * 100)}%</b><input type="range" min="0.15" max="1" step="0.01" value="${state.studio.strength}" data-action="strength"></label><button type="button" class="btn ghost small" data-action="compare">Hold to compare</button><p class="hint">Drag the color onto your features if it misses. Real makeup try-on comes later.</p>` : `<p class="hint">Presets are a stand-in for AI makeup.</p>`}
+        ${makeupControlsHtml()}
       </div>
       <div class="panel" id="layer-controls">${controlsHtml()}</div>
       <div class="panel">
@@ -472,6 +500,17 @@ function studioHtml() {
     </div>
     ${footerHtml()}
   </section>`;
+}
+
+function makeupControlsHtml() {
+  const anchored = hasFaceAnchor(currentPhoto()?.slot);
+  if (state.studio.makeupId === "none") {
+    return `<p class="hint">Presets are a stand-in for AI makeup. Color stays on the face.</p>`;
+  }
+  if (!anchored) {
+    return `<p class="hint">This pose has no face anchor, so makeup stays off. Switch to Front, Side, or Face.</p>`;
+  }
+  return `<label>Strength <b>${Math.round(state.studio.strength * 100)}%</b><input type="range" min="0.15" max="1" step="0.01" value="${state.studio.strength}" data-action="strength"></label><button type="button" class="btn ghost small" data-action="compare">Hold to compare</button><p class="hint">Color stays on the face. Drag a stamp if it misses.</p>`;
 }
 
 function ribbonHtml() {
@@ -496,12 +535,11 @@ function controlsHtml() {
   const layer = selectedLayer();
   if (!layer) return `${list}<p class="hint">Tap a piece on the photo, or add one below. Sliders are here if pinch is fiddly.</p>`;
   const stamp = layer.kind === "stamp";
-  const min = stamp ? 0.02 : 0.15;
-  const max = stamp ? 0.55 : 2.8;
+  const limits = scaleLimits(layer);
   return `${list}
     <p><strong>${escapeHtml(layer.name || "Piece")}</strong></p>
     <label>Size <b>${Math.round(layer.scale * 100)}</b>
-      <input type="range" min="${min}" max="${max}" step="0.01" value="${layer.scale}" data-action="scale">
+      <input type="range" min="${limits.min}" max="${limits.max}" step="0.005" value="${layer.scale}" data-action="scale">
     </label>
     <label>Rotate <b>${Math.round(layer.rotation || 0)}°</b>
       <input type="range" min="-180" max="180" step="1" value="${layer.rotation || 0}" data-action="rotate">
@@ -742,7 +780,7 @@ function onWheel(event) {
 }
 
 function scaleLimits(layer) {
-  return layer.kind === "stamp" ? { min: 0.02, max: 0.55 } : { min: 0.15, max: 2.8 };
+  return layer.kind === "stamp" ? { min: 0.006, max: 0.08 } : { min: 0.04, max: 0.72 };
 }
 
 function onKey(event) {
@@ -795,6 +833,7 @@ function sceneFromState() {
   return {
     photo: photoImage || null,
     makeupId: state.compare ? "none" : state.studio.makeupId,
+    slot: photo?.slot || "",
     strength: state.studio.strength,
     layers,
     selectedId: state.studio.selectedId,
@@ -892,6 +931,7 @@ async function saveLook({ name, occasion }) {
     makeupId: state.studio.makeupId,
     strength: state.studio.strength,
     layers: state.studio.layers.map(stripLayer),
+    placementVersion: PLACEMENT_VERSION,
     previewBlob,
     createdAt: existing?.createdAt || Date.now(),
     updatedAt: Date.now(),
@@ -1037,7 +1077,7 @@ async function commitItem() {
 }
 
 function addItemLayer(item) {
-  const place = defaultPlacement(item.category);
+  const place = defaultPlacement(item.category, currentPhoto()?.slot);
   const layer = {
     id: uid("layer"),
     source: "item",
@@ -1062,7 +1102,7 @@ function addSample(id) {
     showToast("Add a photo, or use a demo drawing, first.");
     return;
   }
-  const place = defaultPlacement(sample.category);
+  const place = defaultPlacement(sample.category, currentPhoto()?.slot);
   const layer = {
     id: uid("layer"),
     source: "sample",
@@ -1280,10 +1320,29 @@ async function addUserPhoto(file, current) {
   showToast("Photo saved on this device");
 }
 
+async function refreshDemoArt() {
+  const stored = await db.getMeta("demoArtVersion");
+  if (stored === DEMO_ART_VERSION) return;
+  let changed = false;
+  for (const pose of DEMO_POSES) {
+    const existing = state.photos.find((photo) => photo.slot === pose.slot);
+    if (!existing) continue;
+    const response = await fetch(`${pose.src}?v=${DEMO_ART_VERSION}`, { cache: "reload" });
+    if (!response.ok) continue;
+    existing.blob = await response.blob();
+    existing.revision = Date.now();
+    await db.putPhoto(existing);
+    visuals.delete(`photo:${existing.id}`);
+    changed = true;
+  }
+  await db.setMeta("demoArtVersion", DEMO_ART_VERSION);
+  if (changed) await reload();
+}
+
 async function addDemoPoses() {
   for (const pose of DEMO_POSES) {
     if (state.photos.some((photo) => photo.slot === pose.slot)) continue;
-    const response = await fetch(pose.src);
+    const response = await fetch(`${pose.src}?v=${DEMO_ART_VERSION}`, { cache: "reload" });
     if (!response.ok) throw new Error("Could not load the demo drawing.");
     const blob = await response.blob();
     await db.putPhoto({
@@ -1345,7 +1404,9 @@ function openLook(id) {
     occasion: look.occasion || "everyday",
     lookId: look.id,
     dirty: false,
+    placementVersion: look.placementVersion,
   };
+  if (state.studio.placementVersion !== PLACEMENT_VERSION) state.studio = reseatStudio(state.studio);
   go("dress");
 }
 

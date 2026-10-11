@@ -1,4 +1,4 @@
-import { getPreset } from "./makeup.js";
+import { faceMetrics, getPreset } from "./makeup.js";
 
 const STAMP_RATIO = { blush: 0.72, lip: 0.42, shadow: 0.46, highlight: 0.72 };
 
@@ -21,13 +21,18 @@ export function layerBox(photoRect, layer) {
   const cx = photoRect.x + layer.x * photoRect.w;
   const cy = photoRect.y + layer.y * photoRect.h;
   if (layer.kind === "stamp") {
-    const bw = photoRect.w * layer.scale * 2;
-    const bh = bw * (STAMP_RATIO[layer.stampKind] || 0.7);
+    const bh = photoRect.h * (layer.scale || 0.02);
+    const bw = bh / (STAMP_RATIO[layer.stampKind] || 0.7);
     return { cx, cy, bw, bh, rotation: layer.rotation || 0 };
   }
-  const aspect = layer.aspect || 1;
-  const bw = photoRect.w * 0.42 * (layer.scale || 1);
-  const bh = bw / aspect;
+  const aspect = layer.aspect > 0 ? layer.aspect : 1;
+  let bh = photoRect.h * (layer.scale || 0.25);
+  let bw = bh * aspect;
+  const maxW = photoRect.w * 0.92;
+  if (bw > maxW) {
+    bw = maxW;
+    bh = bw / aspect;
+  }
   return { cx, cy, bw, bh, rotation: layer.rotation || 0 };
 }
 
@@ -81,7 +86,7 @@ export function paint(ctx, width, height, scene, options = {}) {
   const layers = [...(scene.layers || [])].sort((a, b) => (a.z || 0) - (b.z || 0));
   if (photoRect) {
     for (const layer of layers) {
-      if (scene.hideStamps && layer.kind === "stamp") continue;
+      if (layer.kind === "stamp" && (scene.hideStamps || !faceMetrics(scene.slot))) continue;
       drawLayer(ctx, photoRect, layer, scene.strength ?? 1);
       if (handles && layer.id && layer.id === scene.selectedId) drawHandle(ctx, photoRect, layer, width);
     }
@@ -93,29 +98,21 @@ export function paint(ctx, width, height, scene, options = {}) {
 
 function drawGrade(ctx, photoRect, scene) {
   const preset = getPreset(scene.makeupId || "none");
-  if (!preset.grade && !preset.vignette) return;
+  const face = faceMetrics(scene.slot);
+  if (!preset.grade || !face) return;
+  const cx = photoRect.x + face.cx * photoRect.w;
+  const cy = photoRect.y + face.cy * photoRect.h;
+  const rx = face.rx * photoRect.w;
+  const ry = face.ry * photoRect.h;
   const strength = scene.strength ?? 0.85;
   ctx.save();
   ctx.beginPath();
-  ctx.rect(photoRect.x, photoRect.y, photoRect.w, photoRect.h);
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
   ctx.clip();
-  if (preset.grade) {
-    ctx.globalCompositeOperation = preset.grade.blend || "soft-light";
-    ctx.globalAlpha = (preset.grade.alpha || 0.3) * strength;
-    ctx.fillStyle = preset.grade.color;
-    ctx.fillRect(photoRect.x, photoRect.y, photoRect.w, photoRect.h);
-  }
-  if (preset.vignette) {
-    const cx = photoRect.x + photoRect.w / 2;
-    const cy = photoRect.y + photoRect.h * 0.42;
-    const gradient = ctx.createRadialGradient(cx, cy, photoRect.h * 0.18, cx, cy, photoRect.h * 0.72);
-    gradient.addColorStop(0, "rgba(0,0,0,0)");
-    gradient.addColorStop(1, `rgba(24, 16, 32, ${preset.vignette * strength})`);
-    ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = gradient;
-    ctx.fillRect(photoRect.x, photoRect.y, photoRect.w, photoRect.h);
-  }
+  ctx.globalCompositeOperation = "soft-light";
+  ctx.globalAlpha = Math.min(0.22, (preset.grade.alpha || 0.2) * 0.7) * strength;
+  ctx.fillStyle = preset.grade.color;
+  ctx.fillRect(photoRect.x, photoRect.y, photoRect.w, photoRect.h);
   ctx.restore();
 }
 

@@ -60,6 +60,9 @@ export const DEMO_POSES = [
   { slot: "demo-face", name: "Demo face", src: "assets/demo/face.svg" },
 ];
 
+/** Bump when the demo drawings change so phones refresh the stored copies. */
+export const DEMO_ART_VERSION = 2;
+
 const SLOT_ORDER = ["front", "side", "face", "extra", "demo-front", "demo-side", "demo-face"];
 
 export function sortPhotos(photos) {

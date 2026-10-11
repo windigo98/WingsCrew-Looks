@@ -4,7 +4,9 @@ WingsCrew Looks is a fashion app by WingsCrew. You add photos of yourself, layer
 
 This repository is the first working prototype: a mobile-first static site. It is meant to run on GitHub Pages from the `main` branch, at the repository root.
 
-**GitHub Pages:** [https://windigo98.github.io/Wingscrew-Looks/](https://windigo98.github.io/Wingscrew-Looks/)
+**GitHub Pages:** [https://windigo98.github.io/WingsCrew-Looks/](https://windigo98.github.io/WingsCrew-Looks/)
+
+Styles, scripts, and images use relative paths (`css/`, `js/`, `assets/`), so the site loads correctly under that project path.
 
 "Fit or Miss?" is the vote question, not the app name.
 
@@ -64,7 +66,7 @@ In-app invites, real-time votes, and a live shared registry need a backend. The 
 
 The site is ready to serve from the repository root on branch `main`: `index.html`, assets, and a [`.nojekyll`](.nojekyll) file so Jekyll does not rewrite the folder.
 
-If Pages is not turned on yet: GitHub → **windigo98/Wingscrew-Looks** → **Settings** → **Pages** → **Build and deployment** → **Source: Deploy from a branch** → **Branch: `main`**, folder **`/ (root)`** → **Save**. The site address is `https://windigo98.github.io/Wingscrew-Looks/`. The first deploy can take a minute.
+If Pages is not turned on yet: GitHub → **windigo98/WingsCrew-Looks** → **Settings** → **Pages** → **Build and deployment** → **Source: Deploy from a branch** → **Branch: `main`**, folder **`/ (root)`** → **Save**. The site address is `https://windigo98.github.io/WingsCrew-Looks/`. The first deploy can take a minute.
 
 ## License
 
