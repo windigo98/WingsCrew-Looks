@@ -6,6 +6,16 @@ export const OCCASIONS = [
   { id: "everyday", label: "Everyday" },
 ];
 
+/**
+ * Packs a teen should never see: audience "18+" or a sponsored item in an adult category.
+ * Everyday packs stay available. There is no adult artwork in this prototype.
+ */
+export const PACKS = [
+  { id: "everyday", name: "Everyday", audience: "all" },
+  { id: "wedding-guest", name: "Wedding guest", audience: "all" },
+  { id: "after-hours", name: "After hours", audience: "18+", sponsored: true, sponsorCategory: "adult" },
+];
+
 export const CATEGORIES = [
   { id: "top", label: "Top" },
   { id: "bottom", label: "Bottom" },

@@ -56,7 +56,23 @@ h1, h2, .serif { font-family: var(--serif); font-weight: 560; letter-spacing: -0
   border: 1px solid rgba(243, 230, 200, 0.35);
   background: transparent; color: var(--gold-soft);
   font-family: var(--serif); font-size: 18px;
+  flex: none;
 }
+.teen-pill {
+  flex: none;
+  border: 0;
+  background: #f3e6c8;
+  color: var(--ink);
+  border-radius: 999px;
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.teen-pill[hidden] { display: none; }
+.friend-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin: 10px 0; }
+.friend-row .row { margin: 0; }
+.card h3 { font-family: var(--sans); font-size: 15px; margin-bottom: 6px; }
 
 main {
   padding: 16px 16px calc(var(--nav-h) + 28px);

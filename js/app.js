@@ -1,9 +1,10 @@
-import { CATEGORIES, DEMO_ART_VERSION, DEMO_POSES, OCCASIONS, PHOTO_SLOTS, SAMPLES, categoryLabel, occasionLabel, sampleById, sortPhotos } from "./catalog.js";
+import { CATEGORIES, DEMO_ART_VERSION, DEMO_POSES, OCCASIONS, PACKS, PHOTO_SLOTS, SAMPLES, categoryLabel, occasionLabel, sampleById, sortPhotos } from "./catalog.js";
 import { db } from "./db.js";
 import { downscaleImage, loadImage } from "./images.js";
 import { buildStamps, hasFaceAnchor } from "./makeup.js";
 import { PLACEMENT_VERSION, applyWear, needsReseat, normalizeLayers, scaleCap } from "./placement.js";
 import { providers } from "./providers.js";
+import { ageBand, ageOn, emptyCircle, isTeen, profileFromBirthdate } from "./safety.js";
 import { clamp, escapeHtml, mapsSearchUrl, safeHttpUrl, uid } from "./util.js";
 import { buildWishlistRecord, firstChoice, wishlistToForm } from "./wishlist-model.js";
 
@@ -30,7 +31,10 @@ const state = {
   error: "",
   profile: null,
   onboardStep: 0,
-  ageChecked: false,
+  birthdate: "",
+  birthName: "",
+  ageGate: "",
+  circle: emptyCircle(),
   photos: [],
   items: [],
   looks: [],
@@ -93,7 +97,7 @@ function footerHtml() {
 function parseRoute() {
   const raw = (location.hash || "#dress").replace(/^#\/?/, "");
   const [path, id] = raw.split("/");
-  if (!["dress", "photos", "closet", "wishlist", "looks", "vote"].includes(path)) return { path: "dress", id: "" };
+  if (!["dress", "photos", "closet", "wishlist", "looks", "vote", "friends", "invite", "parent", "shared"].includes(path)) return { path: "dress", id: "" };
   return { path, id: id || "" };
 }
 
@@ -233,6 +237,7 @@ function renderShell() {
     <div class="shell">
       <header class="header" id="header">
         <div class="brand">${wingSvg("brand-mark")}<h1>WingsCrew Looks</h1></div>
+        <button type="button" class="teen-pill" data-action="go" data-route="friends" hidden>Teen</button>
         <button type="button" class="icon-btn" data-action="about" aria-label="About and privacy">i</button>
       </header>
       <main id="view"></main>
@@ -261,9 +266,10 @@ async function init() {
   document.getElementById("view").innerHTML = `<p class="lede">Opening your looks…</p>`;
   try {
     state.profile = await db.getMeta("profile");
+    state.circle = { ...emptyCircle(), ...(await db.getMeta("circle") || {}) };
     state.dismissedRibbon = Boolean(await db.getMeta("ribbon"));
     await reload();
-    await refreshDemoArt();
+    if (state.profile?.onboarded) await refreshDemoArt();
     const draft = await db.getMeta("draft");
     if (draft?.layers) {
       const version = Object.prototype.hasOwnProperty.call(draft, "placementVersion") ? draft.placementVersion : 0;
@@ -301,9 +307,19 @@ function render() {
   const header = document.getElementById("header");
   const nav = document.getElementById("nav");
   const view = document.getElementById("view");
+  const route = parseRoute();
+  if (route.path === "parent") {
+    header.hidden = true;
+    nav.hidden = true;
+    document.body.classList.remove("onboarding");
+    view.innerHTML = parentHtml(route.id);
+    return;
+  }
   const onboarded = Boolean(state.profile?.onboarded) && !state.error;
   header.hidden = !onboarded;
   nav.hidden = !onboarded;
+  const teenPill = header.querySelector(".teen-pill");
+  if (teenPill) teenPill.hidden = !onboarded || !isTeen(state.profile);
   document.body.classList.toggle("onboarding", !onboarded);
   if (state.error) {
     view.innerHTML = `<section class="empty"><h2>Can't store photos here</h2><p class="lede">${escapeHtml(state.error)} Try a regular Safari or Chrome tab.</p>${footerHtml()}</section>`;
@@ -313,7 +329,6 @@ function render() {
     view.innerHTML = onboardHtml();
     return;
   }
-  const route = parseRoute();
   document.body.dataset.route = route.path;
   nav.querySelectorAll("button").forEach((button) => {
     const on = button.dataset.route === route.path || (route.path === "vote" && button.dataset.route === "looks");
@@ -325,6 +340,9 @@ function render() {
   else if (route.path === "wishlist") view.innerHTML = wishlistHtml();
   else if (route.path === "looks") view.innerHTML = looksHtml();
   else if (route.path === "vote") view.innerHTML = voteHtml(route.id);
+  else if (route.path === "friends") view.innerHTML = friendsHtml();
+  else if (route.path === "invite") view.innerHTML = inviteHtml(route.id);
+  else if (route.path === "shared") view.innerHTML = sharedHtml(route.id);
   else {
     view.innerHTML = studioHtml();
     bindStage();
@@ -347,43 +365,90 @@ function onboardHtml() {
     </section>`;
   }
   if (step === 1) {
+    const today = new Date().toISOString().slice(0, 10);
     return `<section class="onboard">
       <div><p class="steps" aria-hidden="true">${dots}</p>
-        <h1>Adults only</h1>
-        <p class="lede">WingsCrew Looks is for people 18 and older. Photos of a face and body need an adult's yes.</p>
-        <label class="check"><input id="age-check" type="checkbox" ${state.ageChecked ? "checked" : ""}> I confirm I am 18 or older</label>
+        <h1>Your birthday</h1>
+        <p class="lede">We use it once, to choose the right mode. Under 13 stops here, and nothing is saved.</p>
+        <label class="field">Birthday
+          <input id="birthdate" type="date" max="${today}" min="1900-01-01" required value="${escapeHtml(state.birthdate)}" autocomplete="bday">
+        </label>
       </div>
       <div class="stack">
-        <button type="button" class="btn full" data-action="onboard-next" ${state.ageChecked ? "" : "disabled"}>Continue</button>
+        <button type="button" class="btn full" data-action="onboard-next" ${state.birthdate ? "" : "disabled"}>Continue</button>
         <button type="button" class="btn ghost full" data-action="onboard-back">Back</button>
       </div>
       ${footerHtml()}
     </section>`;
   }
+  if (state.ageGate === "blocked") {
+    return `<section class="onboard">
+      <div><p class="steps" aria-hidden="true">${dots}</p>
+        <h1>Not yet</h1>
+        <p class="lede">WingsCrew Looks isn't available if you're under 13. We didn't create an account, and we didn't save this birthday.</p>
+      </div>
+      <div class="stack">
+        <button type="button" class="btn full" data-action="onboard-back">Try a different birthday</button>
+      </div>
+      ${footerHtml()}
+    </section>`;
+  }
+  const teen = state.ageGate === "teen";
   return `<section class="onboard">
     <div><p class="steps" aria-hidden="true">${dots}</p>
-      <h1>Your photos stay here</h1>
+      <h1>${teen ? "Teen mode" : "Your photos stay here"}</h1>
+      ${teen ? `<p class="lede">You're 13 to 17, so Teen mode is on. Sharing is invite-only to people you know.</p>
+        <label class="field">What should friends call you?
+          <input id="teen-name" maxlength="40" value="${escapeHtml(state.birthName)}" autocomplete="given-name" placeholder="First name">
+        </label>` : ""}
       <ul class="bullets">
         <li>In this prototype, photos are stored only on this device, in this browser.</li>
         <li>They are not uploaded to WingsCrew or anyone else.</li>
-        <li>Delete them anytime with one tap on the Photos page.</li>
+        ${teen ? `<li>Looks stay private. Video export stays off until you turn it on.</li>
+        <li>A parent link, if you make one, shows your friends list only.</li>` : `<li>Delete them anytime with one tap on the Photos page.</li>`}
         <li>A look is a preview, not a real fitting.</li>
       </ul>
     </div>
     <div class="stack">
-      <button type="button" class="btn full" data-action="onboard-finish">Keep photos on this device</button>
+      <button type="button" class="btn full" data-action="onboard-finish">${teen ? "Start Teen mode" : "Keep photos on this device"}</button>
       <button type="button" class="btn ghost full" data-action="onboard-back">Back</button>
     </div>
     ${footerHtml()}
   </section>`;
 }
 
+function advanceOnboarding() {
+  if (state.onboardStep <= 0) {
+    state.onboardStep = 1;
+    return;
+  }
+  const input = document.getElementById("birthdate");
+  if (input) state.birthdate = input.value;
+  const band = ageBand(ageOn(state.birthdate, new Date()));
+  if (band === "invalid") {
+    showToast("Enter a real birthday.");
+    return;
+  }
+  state.ageGate = band;
+  state.onboardStep = 2;
+}
+
 async function finishOnboarding() {
-  if (!state.ageChecked) return;
-  const now = Date.now();
-  state.profile = { onboarded: true, ageConfirmedAt: now, photoNoticeAt: now };
+  const nameInput = document.getElementById("teen-name");
+  if (nameInput) state.birthName = nameInput.value;
+  const profile = profileFromBirthdate({
+    birthdate: state.birthdate,
+    displayName: state.birthName,
+    today: new Date(),
+  });
+  if (!profile) {
+    if (state.ageGate === "teen") showToast("Add a first name so friends know the invite is from you.");
+    return;
+  }
+  state.profile = profile;
   await db.setMeta("profile", state.profile);
-  go("photos");
+  await refreshDemoArt();
+  go(profile.ageBand === "teen" ? "friends" : "photos");
 }
 
 function photosHtml() {
@@ -491,6 +556,7 @@ function studioHtml() {
           <button type="button" class="btn ghost small" data-action="clear-outfit" ${state.studio.layers.some((layer) => layer.kind !== "stamp") ? "" : "disabled"}>Clear outfit</button>
         </div>
         <p class="hint">One piece per spot. A dress replaces the top and bottom. A layer can sit over a top. Tap a piece again to select it.</p>
+        ${packsHtml()}
         <div class="scroller">
           <button type="button" class="chip ${state.sampleFilter === "samples-tab" ? "" : ""}" data-action="open-add">Add</button>
           ${FILTERS.map(([id, label]) => `<button type="button" class="chip ${state.sampleFilter === id ? "active" : ""}" data-action="filter" data-filter="${id}">${label}</button>`).join("")}
@@ -506,6 +572,13 @@ function studioHtml() {
     </div>
     ${footerHtml()}
   </section>`;
+}
+
+function packsHtml() {
+  const packs = providers.circle.visiblePacks(PACKS, state.profile);
+  const names = packs.map((pack) => escapeHtml(pack.name)).join(" · ");
+  const teenNote = isTeen(state.profile) ? " Adult packs and sponsored adult items stay hidden." : "";
+  return `<p class="hint">Packs: ${names}.${teenNote}</p>`;
 }
 
 function makeupControlsHtml() {
@@ -636,7 +709,7 @@ function looksHtml() {
   const filters = [{ id: "all", label: "All" }, ...OCCASIONS];
   const looks = state.looks.filter((look) => state.lookFilter === "all" || look.occasion === state.lookFilter);
   return `<section>
-    <div class="section-head"><div><h2>Looks</h2><p class="lede">Saved on this device, with the occasion you picked.</p></div></div>
+    <div class="section-head"><div><h2>Looks</h2><p class="lede">${isTeen(state.profile) ? "Private by default. A look you send is visible only to an approved friend." : "Saved on this device, with the occasion you picked."}</p></div></div>
     <div class="scroller" style="margin-bottom:12px">${filters.map((filter) => `<button type="button" class="chip ${state.lookFilter === filter.id ? "active" : ""}" data-action="look-filter" data-filter="${filter.id}">${escapeHtml(filter.label)}</button>`).join("")}</div>
     ${looks.length ? `<div class="card-grid">${looks.map(lookCard).join("")}</div>` : `<div class="empty"><h2>No looks yet</h2><p class="lede">Dress a photo, then save it with a name.</p><button type="button" class="btn" data-action="go" data-route="dress">Start a look</button></div>`}
     ${footerHtml()}
@@ -678,14 +751,14 @@ function voteHtml(id) {
       ${button("meh", "Meh", "–")}
       ${button("no", "No", "×")}
     </div>
-    <p class="hint">Your vote stays on this device. In-app invites and live votes from friends need a backend in the next phase.</p>
+    <p class="hint">${isTeen(state.profile) ? "Only you and approved friends can vote. Votes from anyone else are ignored. Nothing here is public." : "Your vote stays on this device. In-app invites and live votes from friends need a backend in the next phase."}</p>
     <button type="button" class="btn full" data-action="share-look" data-id="${look.id}">Share image</button>
     ${footerHtml()}
   </section>`;
 }
 
 function voteTally(lookId) {
-  const rows = state.votes.filter((vote) => vote.lookId === lookId);
+  const rows = state.votes.filter((vote) => vote.lookId === lookId && providers.circle.allowVote(state.profile, state.circle, vote));
   return {
     heart: rows.filter((vote) => vote.reaction === "heart").length,
     meh: rows.filter((vote) => vote.reaction === "meh").length,
@@ -938,6 +1011,7 @@ async function saveLook({ name, occasion }) {
     strength: state.studio.strength,
     layers: state.studio.layers.map(stripLayer),
     placementVersion: PLACEMENT_VERSION,
+    sharing: isTeen(state.profile) ? { mode: "private", audience: "approved-friends" } : { mode: "private" },
     previewBlob,
     createdAt: existing?.createdAt || Date.now(),
     updatedAt: Date.now(),
@@ -1434,6 +1508,11 @@ function openLook(id) {
 
 async function castVote(lookId, reaction) {
   const existing = state.votes.find((vote) => vote.id === `device-${lookId}`);
+  const vote = { source: "device", voter: "you", friendId: "" };
+  if (!providers.circle.allowVote(state.profile, state.circle, vote)) {
+    showToast("Only approved friends can vote.");
+    return;
+  }
   await db.putVote({
     id: `device-${lookId}`,
     lookId,
@@ -1486,10 +1565,16 @@ function onInput(event) {
 }
 
 function onChange(event) {
-  if (event.target.id === "age-check") {
-    state.ageChecked = event.target.checked;
+  if (event.target.id === "birthdate") {
+    state.birthdate = event.target.value;
     const next = document.querySelector('[data-action="onboard-next"]');
-    if (next) next.disabled = !state.ageChecked;
+    if (next) next.disabled = !state.birthdate;
+  }
+  if (event.target.id === "teen-name") state.birthName = event.target.value;
+  if (event.target.id === "video-export" && isTeen(state.profile)) {
+    state.profile = { ...state.profile, videoExport: event.target.checked };
+    db.setMeta("profile", state.profile).catch(() => {});
+    showToast(event.target.checked ? "Video export is on" : "TikTok and video export are off");
   }
   if (event.target.id === "lift-bg") {
     refreshPendingMatte().catch((error) => showToast(error.message || "Could not edit that background."));
@@ -1512,8 +1597,11 @@ async function onClick(event) {
   const action = button.dataset.action;
   try {
     if (action === "go") go(button.dataset.route);
-    else if (action === "onboard-next") state.onboardStep = Math.min(2, state.onboardStep + 1);
-    else if (action === "onboard-back") state.onboardStep = Math.max(0, state.onboardStep - 1);
+    else if (action === "onboard-next") advanceOnboarding();
+    else if (action === "onboard-back") {
+      state.onboardStep = Math.max(0, state.onboardStep - 1);
+      if (state.onboardStep < 2) state.ageGate = "";
+    }
     else if (action === "onboard-finish") {
       await finishOnboarding();
       return;
@@ -1585,6 +1673,16 @@ async function onClick(event) {
       render();
     } else if (action === "open-look") openLook(button.dataset.id);
     else if (action === "share-look") await shareSaved(button.dataset.id);
+    else if (action === "create-invite") await createFriendInvite();
+    else if (action === "send-invite") await sendInviteLink(button.dataset.token);
+    else if (action === "accept-invite") await acceptFriendInvite(button.dataset.token);
+    else if (action === "approve-friend") await approveFriend(button.dataset.id);
+    else if (action === "remove-friend") await setFriendStatus(button.dataset.id, "remove");
+    else if (action === "block-friend") await setFriendStatus(button.dataset.id, "block");
+    else if (action === "report-friend") await reportFriend(button.dataset.id);
+    else if (action === "parent-link") await makeParentLink();
+    else if (action === "copy-parent") await copyText(parentUrl(state.circle.parentToken), "Parent link copied");
+    else if (action === "send-look") await sendLookToFriend(button.dataset.id, button.dataset.friend, button.dataset.video === "1");
     else if (action === "delete-look") await deleteLook(button.dataset.id);
     else if (action === "vote") await castVote(button.dataset.id, button.dataset.reaction);
     else if (action === "pick-occasion") {
@@ -1642,6 +1740,14 @@ async function shareStudio() {
     showToast("Add a photo first.");
     return;
   }
+  if (isTeen(state.profile)) {
+    if (!state.studio.lookId || state.studio.dirty) {
+      showToast("Save the look first. Teen mode only sends a saved look to an approved friend.");
+      return;
+    }
+    openTeenShare(state.studio.lookId);
+    return;
+  }
   const blob = await exportSceneBlob();
   const name = state.looks.find((look) => look.id === state.studio.lookId)?.name || "look";
   const result = await shareBlob(blob, fileSlug(name), "Fit or Miss? Made with WingsCrew Looks. AI preview — not a real fitting.");
@@ -1654,8 +1760,28 @@ async function shareSaved(id) {
     showToast("That look has no image yet.");
     return;
   }
+  if (isTeen(state.profile)) {
+    openTeenShare(id);
+    return;
+  }
   const result = await shareBlob(look.previewBlob, fileSlug(look.name), "Fit or Miss? Made with WingsCrew Looks. AI preview — not a real fitting.");
   if (result === "downloaded") showToast("Image downloaded");
+}
+
+function openTeenShare(lookId) {
+  const look = state.looks.find((item) => item.id === lookId);
+  if (!look) {
+    showToast("Save the look first.");
+    return;
+  }
+  const approved = (state.circle.friends || []).filter((friend) => friend.status === "approved");
+  const videoOn = Boolean(state.profile?.videoExport);
+  openSheet(`
+    <h2>Send this look</h2>
+    <p class="lede">Private. Only an approved friend can open it. There is no public link.</p>
+    ${approved.length ? `<div class="stack">${approved.map((friend) => `<button type="button" class="btn full" data-action="send-look" data-id="${look.id}" data-friend="${friend.id}">Send still to ${escapeHtml(friend.name)}</button>`).join("")}</div>` : `<p class="hint">Approve a friend first. Sharing is invite-only.</p><button type="button" class="btn full" data-action="go" data-route="friends">Friends</button>`}
+    <p class="hint">${videoOn ? "Video export is on. This prototype still sends a still image, and only to an approved friend." : "TikTok and video export are off until you turn them on in Friends."}</p>
+    ${videoOn && approved.length ? `<div class="stack">${approved.map((friend) => `<button type="button" class="btn ghost full" data-action="send-look" data-id="${look.id}" data-friend="${friend.id}" data-video="1">Export video to ${escapeHtml(friend.name)}</button>`).join("")}</div>` : ""}`);
 }
 
 async function deleteItem(id) {
@@ -1696,12 +1822,245 @@ async function deleteLook(id) {
   });
 }
 
+function friendsHtml() {
+  const friends = state.circle.friends || [];
+  const pending = friends.filter((friend) => friend.status === "pending");
+  const approved = friends.filter((friend) => friend.status === "approved");
+  const blocked = friends.filter((friend) => friend.status === "blocked");
+  const invite = [...(state.circle.invites || [])].reverse()[0];
+  const link = invite ? inviteUrl(invite.token) : "";
+  return `<section>
+    <div class="section-head"><div><h2>Friends</h2><p class="lede">Invite-only, to people you know. No public profile and no search.</p></div></div>
+    <article class="card">
+      <h3>Invite</h3>
+      <p class="hint">Send a personal link from this phone. They accept, then you approve them by name.</p>
+      <button type="button" class="btn full" data-action="create-invite">Invite someone you know</button>
+      ${link ? `<label class="field" style="margin-top:12px">Personal link<input readonly value="${escapeHtml(link)}"></label>
+        <button type="button" class="btn" data-action="send-invite" data-token="${escapeHtml(invite.token)}">Send invite</button>` : ""}
+    </article>
+    <article class="card">
+      <h3>Waiting for you</h3>
+      ${pending.length ? pending.map((friend) => `<div class="friend-row"><div><strong>${escapeHtml(friend.name)}</strong><p class="hint">Accepted your invite</p></div><button type="button" class="btn small" data-action="approve-friend" data-id="${friend.id}">Approve ${escapeHtml(friend.name)}</button></div>`).join("") : `<p class="hint">When a friend accepts, their name shows up here for you to approve.</p>`}
+    </article>
+    <article class="card">
+      <h3>Approved</h3>
+      ${approved.length ? approved.map((friend) => friendActions(friend)).join("") : `<p class="hint">No approved friends yet. Looks stay private.</p>`}
+    </article>
+    ${blocked.length ? `<article class="card"><h3>Blocked</h3>${blocked.map((friend) => `<div class="friend-row"><strong>${escapeHtml(friend.name)}</strong><span class="hint">Can't see looks or vote</span></div>`).join("")}</article>` : ""}
+    <article class="card">
+      <h3>Video export</h3>
+      <label class="check"><input id="video-export" type="checkbox" ${state.profile?.videoExport ? "checked" : ""}> TikTok and video export</label>
+      <p class="hint">Off until you turn it on. Shared photos are still only for approved friends.</p>
+    </article>
+    <article class="card">
+      <h3>Parent link</h3>
+      <p class="hint">Optional. A parent can view this friends list only, not your looks or photos.</p>
+      ${state.circle.parentToken ? `<label class="field">Parent link<input readonly value="${escapeHtml(parentUrl(state.circle.parentToken))}"></label><button type="button" class="btn ghost" data-action="copy-parent">Copy parent link</button>` : `<button type="button" class="btn ghost" data-action="parent-link">Create a parent link</button>`}
+    </article>
+    <p class="hint">Matching phone contacts comes with the native app. This web app uses invite links only.</p>
+    ${footerHtml()}
+  </section>`;
+}
+
+function friendActions(friend) {
+  return `<div class="friend-row">
+    <strong>${escapeHtml(friend.name)}</strong>
+    <div class="row">
+      <button type="button" class="btn ghost small" data-action="remove-friend" data-id="${friend.id}">Remove</button>
+      <button type="button" class="btn ghost small" data-action="block-friend" data-id="${friend.id}">Block</button>
+      <button type="button" class="btn ghost small" data-action="report-friend" data-id="${friend.id}">Report</button>
+    </div>
+  </div>`;
+}
+
+function inviteHtml(token) {
+  const invite = (state.circle.invites || []).find((item) => item.token === token);
+  if (!invite) {
+    return `<section class="empty"><h2>Invite not on this phone</h2><p class="lede">This prototype keeps the invite on the phone that created it. True delivery to another phone needs the backend. Phone-contact matching comes with the native app.</p><button type="button" class="btn" data-action="go" data-route="friends">Back</button>${footerHtml()}</section>`;
+  }
+  const used = (state.circle.friends || []).some((friend) => friend.inviteToken === token && friend.status !== "removed");
+  if (used) {
+    return `<section class="empty"><h2>Already accepted</h2><p class="lede">This invite is waiting for approval, or it's already on the friends list.</p><button type="button" class="btn" data-action="go" data-route="friends">Back to friends</button>${footerHtml()}</section>`;
+  }
+  const from = state.profile?.displayName || "A friend";
+  return `<section>
+    <div class="section-head"><div><h2>Accept invite</h2><p class="lede">${escapeHtml(from)} invited you. Enter your name. They still have to approve you.</p></div></div>
+    <article class="card">
+      <label class="field">Your name<input id="friend-accept-name" maxlength="40" placeholder="First name"></label>
+      <button type="button" class="btn full" data-action="accept-invite" data-token="${escapeHtml(token)}">Accept invite</button>
+      <p class="hint">There is no search and no public profile. This web app uses invite links. Matching phone contacts comes with the native app.</p>
+    </article>
+    ${footerHtml()}
+  </section>`;
+}
+
+function parentHtml(token) {
+  const snapshot = providers.circle.parentSnapshot(state.circle, token);
+  if (!snapshot) {
+    return `<section class="onboard"><div><h1>Parent link</h1><p class="lede">This link isn't valid on this phone. In this prototype the parent view opens on the teen's device.</p></div>${footerHtml()}</section>`;
+  }
+  const rows = snapshot.friends.length
+    ? snapshot.friends.map((friend) => `<div class="friend-row"><strong>${escapeHtml(friend.name)}</strong><span class="tag">${escapeHtml(friend.status)}</span></div>`).join("")
+    : `<p class="hint">No friends yet.</p>`;
+  return `<section class="onboard">
+    <div>
+      <h1>Friends</h1>
+      <p class="lede">Approved friends, and nothing else. Looks, photos, and votes are not on this page.</p>
+      <article class="card" style="margin-top:16px">${rows}</article>
+    </div>
+    ${footerHtml()}
+  </section>`;
+}
+
+function sharedHtml(token) {
+  const view = providers.circle.canViewShare(state.circle, token);
+  const look = view ? state.looks.find((item) => item.id === view.lookId) : null;
+  if (!look) {
+    return `<section class="empty"><h2>This look is private</h2><p class="lede">Only an approved friend can open a look sent from Teen mode.</p>${footerHtml()}</section>`;
+  }
+  const src = look.previewBlob ? mediaUrl(`preview:${look.id}:${look.updatedAt}`, look.previewBlob) : "";
+  return `<section class="vote">
+    <h2>${escapeHtml(look.name)}</h2>
+    ${src ? `<img alt="${escapeHtml(look.name)}" src="${src}">` : ""}
+    <p class="hint">Visible because you are an approved friend. This is not a public page.</p>
+    ${footerHtml()}
+  </section>`;
+}
+
+function inviteUrl(token) {
+  const url = new URL(location.href);
+  url.hash = `invite/${token}`;
+  return url.href;
+}
+
+function parentUrl(token) {
+  const url = new URL(location.href);
+  url.hash = `parent/${token}`;
+  return url.href;
+}
+
+function shareUrl(token) {
+  const url = new URL(location.href);
+  url.hash = `shared/${token}`;
+  return url.href;
+}
+
+async function saveCircle() {
+  await db.setMeta("circle", state.circle);
+}
+
+async function createFriendInvite() {
+  const result = providers.circle.createInvite(state.circle);
+  state.circle = result.circle;
+  await saveCircle();
+  render();
+  showToast("Invite ready to send");
+}
+
+async function sendInviteLink(token) {
+  const url = inviteUrl(token);
+  const who = state.profile?.displayName || "A friend";
+  const text = `${who} invited you to WingsCrew Looks. This invite is only for you.`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "WingsCrew Looks", text, url });
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+    }
+  }
+  await copyText(url, "Invite link copied");
+}
+
+async function acceptFriendInvite(token) {
+  const name = document.getElementById("friend-accept-name")?.value || "";
+  const result = providers.circle.acceptInvite(state.circle, { token, friendName: name });
+  if (result.error) {
+    showToast(result.error);
+    return;
+  }
+  state.circle = result.circle;
+  await saveCircle();
+  showToast(`${result.friend.name} accepted. Approve them by name.`);
+  go("friends");
+}
+
+async function approveFriend(id) {
+  const result = providers.circle.approveFriend(state.circle, { id });
+  if (result.error) {
+    showToast(result.error);
+    return;
+  }
+  state.circle = result.circle;
+  await saveCircle();
+  showToast(`${result.friend.name} is approved`);
+  render();
+}
+
+async function setFriendStatus(id, kind) {
+  const result = kind === "block" ? providers.circle.blockFriend(state.circle, { id }) : providers.circle.removeFriend(state.circle, { id });
+  state.circle = result.circle;
+  await saveCircle();
+  showToast(kind === "block" ? "Blocked. They can't see looks or vote." : "Removed from friends");
+  render();
+}
+
+async function reportFriend(id) {
+  const result = providers.circle.reportFriend(state.circle, { id });
+  if (result.error) {
+    showToast(result.error);
+    return;
+  }
+  state.circle = result.circle;
+  await saveCircle();
+  showToast(`Reported ${result.report.friendName}. A hosted app would send this to WingsCrew.`);
+}
+
+async function makeParentLink() {
+  const result = providers.circle.createParentLink(state.circle);
+  state.circle = result.circle;
+  await saveCircle();
+  render();
+  showToast("Parent link ready. It shows the friends list only.");
+}
+
+async function sendLookToFriend(lookId, friendId, video) {
+  if (video && !state.profile?.videoExport) {
+    showToast("TikTok and video export are off.");
+    return;
+  }
+  if (!providers.circle.allowLookShare(state.profile, state.circle, friendId)) {
+    showToast("Only an approved friend can receive a look.");
+    return;
+  }
+  const result = providers.circle.shareLookWith(state.circle, { lookId, friendId, video });
+  if (result.error) {
+    showToast(result.error);
+    return;
+  }
+  state.circle = result.circle;
+  await saveCircle();
+  closeSheet();
+  const friend = (state.circle.friends || []).find((item) => item.id === friendId);
+  await copyText(shareUrl(result.share.token), video ? `Video export link copied for ${friend?.name || "your friend"}` : `Look link copied for ${friend?.name || "your friend"}`);
+}
+
+async function copyText(value, message) {
+  try {
+    await navigator.clipboard.writeText(value);
+    showToast(message);
+  } catch {
+    showToast(message.replace("copied", "ready"));
+  }
+}
+
 function openAbout() {
   const names = [
     providers.avatar.label,
     providers.tryOn.label,
     providers.makeup.label,
     providers.background.label,
+    providers.circle.label,
   ].join(" · ");
   openSheet(`
     <h2>About</h2>
@@ -1709,6 +2068,7 @@ function openAbout() {
     <div class="sheet-note">
       <p>Photos in this prototype stay in this browser, on this device. They are not uploaded.</p>
       <p style="margin-top:8px">Every dressed image is marked AI preview. It is not a real fitting.</p>
+      <p style="margin-top:8px">${isTeen(state.profile) ? "Teen mode is on. Sharing is invite-only. There is no public profile and no search. Phone-contact matching comes with the native app." : "Ages 13 to 17 use Teen mode. Under 13 is not stored."}</p>
       <p style="margin-top:8px">Active previews: ${escapeHtml(names)}.</p>
     </div>
     <div class="stack" style="margin-top:14px">

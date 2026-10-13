@@ -2,9 +2,9 @@
  * WingsCrew Looks provider seam.
  *
  * The screens call `providers.avatar`, `providers.tryOn`, `providers.makeup`,
- * and `providers.background`. Swap any of those four for a hosted model later
- * without rewriting the pages. This prototype ships local implementations only:
- * no API keys, and photos never leave the device.
+ * `providers.background`, and `providers.circle`. Swap any of them for a hosted
+ * model later without rewriting the pages. This prototype ships local
+ * implementations only: no API keys, and photos never leave the device.
  *
  * Suggested later replacements (not wired up):
  * - avatar: a Gemini image edit that proposes extra poses from the front photo
@@ -18,6 +18,22 @@
 import { downscaleImage } from "./images.js";
 import { buildStamps, MAKEUP_PRESETS } from "./makeup.js";
 import { hitTest, paint, paintToBlob } from "./paint.js";
+import {
+  acceptInvite,
+  allowLookShare,
+  allowMessage,
+  allowVote,
+  approveFriend,
+  blockFriend,
+  canViewShare,
+  createInvite,
+  createParentLink,
+  parentSnapshot,
+  removeFriend,
+  reportFriend,
+  shareLookWith,
+  visiblePacks,
+} from "./safety.js";
 
 export const localAvatarProvider = {
   id: "local-photo",
@@ -171,9 +187,37 @@ function cornerColor(data, width, height) {
   };
 }
 
+/**
+ * Friend circle for Teen mode.
+ * True phone-contact matching comes with the native app.
+ * The web uses personal invite links only: no search, no public profile.
+ * A hosted circle provider would deliver accepts and parent views across phones.
+ */
+export const localCircleProvider = {
+  id: "local-invite-link",
+  label: "Invite links",
+  contactMatching: "native-app",
+  webInvites: "link",
+  createInvite,
+  acceptInvite,
+  approveFriend,
+  removeFriend,
+  blockFriend,
+  reportFriend,
+  createParentLink,
+  parentSnapshot,
+  allowVote,
+  allowMessage,
+  allowLookShare,
+  shareLookWith,
+  canViewShare,
+  visiblePacks,
+};
+
 export const providers = {
   avatar: localAvatarProvider,
   tryOn: localTryOnProvider,
   makeup: localMakeupProvider,
   background: localBackgroundProvider,
+  circle: localCircleProvider,
 };

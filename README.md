@@ -38,6 +38,7 @@ node --test tests/wishlist.test.js
 | Background lift | Real, on-device, for a plain light backdrop. It will damage white clothing, so it is off unless you turn it on. | A proper matte model such as `@imgly/background-removal` |
 | Looks, closet, wishlist, votes | Real, on this device | Shared invites, live votes, live registry |
 | "AI preview" badge | Burned into every exported image, and shown on the studio | Keep it. The AI label does not come off. |
+| Age and Teen mode | Birthday on first run. Under 13 is refused and not stored. Ages 13–17 get Teen mode: invite-only friends, private looks, video export off until they turn it on, no adult or sponsored-adult packs, optional parent link that shows the friends list only. | Accounts, delivery of invites to another phone, and phone-contact matching (that last one comes with the native app; the web uses invite links) |
 
 Nothing here calls a paid API or needs a secret.
 
@@ -49,8 +50,19 @@ Screens talk to four providers in [`js/providers.js`](js/providers.js). Swap the
 - `providers.tryOn.render(scene)` → the final JPEG, already badged. `paint` is the local layer editor. A hosted try-on (FASHN Try-On or Google Virtual Try-On) should return one generated image from the person photo plus the garment photo.
 - `providers.makeup.apply({ presetId, slot })` → overlay instructions (`mode: "overlay"`). A hosted makeup provider can return `{ mode: "generate", blob }` instead.
 - `providers.background.remove(blob, { strength })` → a PNG with a light backdrop lifted, or the original if it can't see a plain background.
+- `providers.circle` → Teen mode friend circle. `createInvite`, `acceptInvite`, `approveFriend`, `blockFriend`, `reportFriend`, `createParentLink`, and `parentSnapshot`. `parentSnapshot` returns names and status only.
 
-Local ids: `local-photo`, `local-composite`, `local-preset-overlay`, `local-light-matte`.
+Local ids: `local-photo`, `local-composite`, `local-preset-overlay`, `local-light-matte`, `local-invite-link`.
+
+## Teen mode
+
+The first run asks for a birthday.
+
+- Under 13 sees a short refusal. No account is created and the birthday is not stored.
+- Ages 13 to 17 are in Teen mode. Sharing is an invite link the teen sends from their own phone (the system share sheet, or a copied link). The friend accepts and the teen approves them by name. The friends list can remove, block, or report. There is no public profile, no search, and no votes or messages from anyone who is not approved. Looks are private. TikTok and video export stay off until the teen turns them on. An optional parent link shows the approved-friends list only, not the looks.
+- 18 and up get the normal mode. A device that already finished the older 18+ check stays in normal mode.
+
+True phone-contact matching comes with the native app. This web prototype uses invite links only, stored on the device, behind `providers.circle`.
 
 The wishlist record in [`js/wishlist-model.js`](js/wishlist-model.js) is shaped for a later shared registry: `variants[]` with `status` (`available`, later `claimed` / `purchased`) and `claim`, `places[]` of `online` or `nearby` (with an Open in Maps link), jewelry fields, and `sharing.mode: "private"`.
 
