@@ -80,6 +80,10 @@ main {
   margin: 0 auto;
 }
 
+.header[hidden],
+.nav[hidden] {
+  display: none;
+}
 .nav {
   position: fixed;
   z-index: 7;
