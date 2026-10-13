@@ -263,7 +263,7 @@ function renderShell() {
 
 async function init() {
   renderShell();
-  document.getElementById("view").innerHTML = `<p class="lede">Opening your looks…</p>`;
+  document.getElementById("view").innerHTML = `<p class="lede">Opening your looks…</p>${footerHtml()}`;
   try {
     state.profile = await db.getMeta("profile");
     state.circle = { ...emptyCircle(), ...(await db.getMeta("circle") || {}) };
@@ -735,7 +735,7 @@ function lookCard(look) {
 
 function voteHtml(id) {
   const look = state.looks.find((item) => item.id === id);
-  if (!look) return `<section class="empty"><h2>That look isn't here</h2><button type="button" class="btn" data-action="go" data-route="looks">Back to looks</button></section>`;
+  if (!look) return `<section class="empty"><h2>That look isn't here</h2><button type="button" class="btn" data-action="go" data-route="looks">Back to looks</button>${footerHtml()}</section>`;
   const tally = voteTally(id);
   const mine = state.votes.find((vote) => vote.id === `device-${id}`);
   const src = look.previewBlob ? mediaUrl(`preview:${look.id}:${look.updatedAt}`, look.previewBlob) : "";
