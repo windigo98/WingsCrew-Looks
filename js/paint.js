@@ -1,4 +1,5 @@
 import { faceMetrics, getPreset } from "./makeup.js";
+import { LEGACY_SCALE, defaultPlacement } from "./placement.js";
 
 const STAMP_RATIO = { blush: 0.72, lip: 0.42, shadow: 0.46, highlight: 0.72 };
 
@@ -36,15 +37,21 @@ export function layerBox(photoRect, layer) {
   return { cx, cy, bw, bh, rotation: layer.rotation || 0 };
 }
 
-export function hitTest(x, y, photoRect, layers) {
+export function hitTest(x, y, photoRect, layers, slot) {
   if (!photoRect) return null;
   const sorted = [...layers].sort((a, b) => (b.z || 0) - (a.z || 0));
   for (const layer of sorted) {
     if (layer.kind !== "stamp" && !layer.image) continue;
-    const box = layerBox(photoRect, layer);
+    const box = layerBox(photoRect, resolvedLayer(layer, slot));
     if (pointInBox(x, y, box)) return layer.id;
   }
   return null;
+}
+
+/** Old saves used a width multiplier near 1. Draw those at body size. */
+function resolvedLayer(layer, slot) {
+  if (!layer || layer.kind === "stamp" || (layer.scale || 0) <= LEGACY_SCALE) return layer;
+  return { ...layer, ...defaultPlacement(layer.category, slot, layer) };
 }
 
 function pointInBox(px, py, box) {
@@ -87,8 +94,9 @@ export function paint(ctx, width, height, scene, options = {}) {
   if (photoRect) {
     for (const layer of layers) {
       if (layer.kind === "stamp" && (scene.hideStamps || !faceMetrics(scene.slot))) continue;
-      drawLayer(ctx, photoRect, layer, scene.strength ?? 1);
-      if (handles && layer.id && layer.id === scene.selectedId) drawHandle(ctx, photoRect, layer, width);
+      const drawn = resolvedLayer(layer, scene.slot);
+      drawLayer(ctx, photoRect, drawn, scene.strength ?? 1);
+      if (handles && layer.id && layer.id === scene.selectedId) drawHandle(ctx, photoRect, drawn, width);
     }
   }
 

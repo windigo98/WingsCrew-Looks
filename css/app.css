@@ -312,6 +312,9 @@ main {
   padding: 12px;
 }
 .panel h3 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-family: var(--sans); font-weight: 700; margin-bottom: 8px; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.panel-head h3 { margin-bottom: 0; }
+.panel-head .btn { flex: none; }
 .layer-controls label { display: block; font-size: 13px; font-weight: 650; color: var(--ink-soft); margin: 8px 0; }
 input[type="range"] { width: 100%; accent-color: var(--rose); }
 

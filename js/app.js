@@ -2,7 +2,7 @@ import { CATEGORIES, DEMO_ART_VERSION, DEMO_POSES, OCCASIONS, PHOTO_SLOTS, SAMPL
 import { db } from "./db.js";
 import { downscaleImage, loadImage } from "./images.js";
 import { buildStamps, hasFaceAnchor } from "./makeup.js";
-import { PLACEMENT_VERSION, defaultPlacement, nextLayerZ } from "./placement.js";
+import { PLACEMENT_VERSION, applyWear, needsReseat, normalizeLayers, scaleCap } from "./placement.js";
 import { providers } from "./providers.js";
 import { clamp, escapeHtml, mapsSearchUrl, safeHttpUrl, uid } from "./util.js";
 import { buildWishlistRecord, firstChoice, wishlistToForm } from "./wishlist-model.js";
@@ -265,12 +265,16 @@ async function init() {
     await reload();
     await refreshDemoArt();
     const draft = await db.getMeta("draft");
-    if (draft?.layers) state.studio = { ...emptyStudio(), ...draft, layers: draft.layers || [] };
+    if (draft?.layers) {
+      const version = Object.prototype.hasOwnProperty.call(draft, "placementVersion") ? draft.placementVersion : 0;
+      state.studio = { ...emptyStudio(), ...draft, layers: draft.layers || [], placementVersion: version };
+    }
     if (!state.photos.some((photo) => photo.id === state.studio.photoId)) {
       state.studio.photoId = state.photos.find((photo) => !photo.demo)?.id || state.photos[0]?.id || null;
     }
-    if (state.studio.placementVersion !== PLACEMENT_VERSION) {
+    if (needsReseat(state.studio)) {
       state.studio = reseatStudio(state.studio);
+      saveDraft();
     }
   } catch (error) {
     state.error = error?.message || "This browser blocked on-device storage.";
@@ -282,13 +286,11 @@ async function init() {
 function reseatStudio(studio) {
   const photo = state.photos.find((item) => item.id === studio.photoId);
   const slot = photo?.slot || "front";
-  const items = (studio.layers || []).filter((layer) => layer.kind !== "stamp").map((layer) => ({
-    ...layer,
-    ...defaultPlacement(layer.category, slot),
-    rotation: 0,
-  }));
+  const items = normalizeLayers(studio.layers, slot);
   const stamps = studio.makeupId && studio.makeupId !== "none" ? buildStamps(studio.makeupId, slot) : [];
-  return { ...studio, layers: [...items, ...stamps], placementVersion: PLACEMENT_VERSION };
+  const layers = [...items, ...stamps];
+  const selectedId = layers.some((layer) => layer.id === studio.selectedId) ? studio.selectedId : null;
+  return { ...studio, layers, selectedId, placementVersion: PLACEMENT_VERSION };
 }
 
 function render() {
@@ -484,7 +486,11 @@ function studioHtml() {
       </div>
       <div class="panel" id="layer-controls">${controlsHtml()}</div>
       <div class="panel">
-        <h3>Pieces</h3>
+        <div class="panel-head">
+          <h3>Pieces</h3>
+          <button type="button" class="btn ghost small" data-action="clear-outfit" ${state.studio.layers.some((layer) => layer.kind !== "stamp") ? "" : "disabled"}>Clear outfit</button>
+        </div>
+        <p class="hint">One piece per spot. A dress replaces the top and bottom. A layer can sit over a top. Tap a piece again to select it.</p>
         <div class="scroller">
           <button type="button" class="chip ${state.sampleFilter === "samples-tab" ? "" : ""}" data-action="open-add">Add</button>
           ${FILTERS.map(([id, label]) => `<button type="button" class="chip ${state.sampleFilter === id ? "active" : ""}" data-action="filter" data-filter="${id}">${label}</button>`).join("")}
@@ -712,7 +718,7 @@ function onPointerDown(event) {
   pointers.set(event.pointerId, clientToCanvas(canvas, event.clientX, event.clientY));
   const point = pointers.get(event.pointerId);
   if (pointers.size === 1) {
-    const hit = providers.tryOn.hitTest(point.x, point.y, state.layout?.photoRect, paintableLayers());
+    const hit = providers.tryOn.hitTest(point.x, point.y, state.layout?.photoRect, paintableLayers(), currentPhoto()?.slot);
     state.studio.selectedId = hit;
     const layer = selectedLayer();
     gesture = layer ? { mode: "move", id: layer.id, start: point, origX: layer.x, origY: layer.y } : null;
@@ -780,7 +786,7 @@ function onWheel(event) {
 }
 
 function scaleLimits(layer) {
-  return layer.kind === "stamp" ? { min: 0.006, max: 0.08 } : { min: 0.04, max: 0.72 };
+  return layer.kind === "stamp" ? { min: 0.006, max: 0.08 } : { min: 0.03, max: scaleCap(layer) };
 }
 
 function onKey(event) {
@@ -1077,48 +1083,61 @@ async function commitItem() {
 }
 
 function addItemLayer(item) {
-  const place = defaultPlacement(item.category, currentPhoto()?.slot);
-  const layer = {
+  wearIncoming({
     id: uid("layer"),
     source: "item",
     refId: item.id,
     name: item.name,
     category: item.category,
     kind: "item",
-    ...place,
     rotation: 0,
     flip: 1,
-    z: nextLayerZ(state.studio.layers, item.category),
-  };
-  state.studio.layers.push(layer);
-  state.studio.selectedId = layer.id;
-  markDirty();
+  });
 }
 
 function addSample(id) {
   const sample = sampleById(id);
   if (!sample) return;
-  if (!currentPhoto()) {
-    showToast("Add a photo, or use a demo drawing, first.");
-    return;
-  }
-  const place = defaultPlacement(sample.category, currentPhoto()?.slot);
-  const layer = {
+  wearIncoming({
     id: uid("layer"),
     source: "sample",
     refId: sample.id,
     name: sample.name,
     category: sample.category,
     kind: "item",
-    ...place,
     rotation: 0,
     flip: 1,
-    z: nextLayerZ(state.studio.layers, sample.category),
-  };
-  state.studio.layers.push(layer);
-  state.studio.selectedId = layer.id;
+  });
+  render();
+}
+
+function wearIncoming(incoming) {
+  if (!currentPhoto()) {
+    showToast("Add a photo, or use a demo drawing, first.");
+    return null;
+  }
+  const result = applyWear(state.studio.layers, incoming, currentPhoto().slot);
+  state.studio.layers = result.layers;
+  state.studio.selectedId = result.selectedId;
+  if (result.added) markDirty();
+  return result;
+}
+
+function clearOutfit() {
+  const removed = state.studio.layers.filter((layer) => layer.kind !== "stamp");
+  if (!removed.length) return;
+  const snapshot = state.studio.layers.map((layer) => ({ ...layer }));
+  state.studio.layers = state.studio.layers.filter((layer) => layer.kind === "stamp");
+  state.studio.selectedId = null;
   markDirty();
   render();
+  showToast("Outfit cleared", {
+    undo: async () => {
+      state.studio.layers = snapshot.map((layer) => ({ ...layer }));
+      state.studio.selectedId = null;
+      markDirty();
+    },
+  });
 }
 
 async function setMakeup(presetId) {
@@ -1134,12 +1153,15 @@ async function setMakeup(presetId) {
 async function setPose(photoId) {
   const changed = photoId !== state.studio.photoId;
   state.studio.photoId = photoId;
-  if (changed && state.studio.makeupId !== "none") {
-    const result = await providers.makeup.apply({ presetId: state.studio.makeupId, slot: currentPhoto()?.slot || "front" });
-    const items = state.studio.layers.filter((layer) => layer.kind !== "stamp");
-    state.studio.layers = [...items, ...result.stamps];
+  if (changed) {
+    const slot = currentPhoto()?.slot || "front";
+    const items = normalizeLayers(state.studio.layers, slot);
+    const stamps = state.studio.makeupId && state.studio.makeupId !== "none" ? buildStamps(state.studio.makeupId, slot) : [];
+    state.studio.layers = [...items, ...stamps];
+    state.studio.placementVersion = PLACEMENT_VERSION;
+    if (!state.studio.layers.some((layer) => layer.id === state.studio.selectedId)) state.studio.selectedId = null;
+    markDirty();
   }
-  if (changed) markDirty();
   if (parseRoute().path === "dress") {
     if (changed) render();
   } else go("dress");
@@ -1404,9 +1426,9 @@ function openLook(id) {
     occasion: look.occasion || "everyday",
     lookId: look.id,
     dirty: false,
-    placementVersion: look.placementVersion,
+    placementVersion: Object.prototype.hasOwnProperty.call(look, "placementVersion") ? look.placementVersion : 0,
   };
-  if (state.studio.placementVersion !== PLACEMENT_VERSION) state.studio = reseatStudio(state.studio);
+  if (needsReseat(state.studio)) state.studio = reseatStudio(state.studio);
   go("dress");
 }
 
@@ -1532,6 +1554,7 @@ async function onClick(event) {
     } else if (action === "layer-back") nudgeLayer(-1);
     else if (action === "layer-forward") nudgeLayer(1);
     else if (action === "delete-layer") deleteSelected();
+    else if (action === "clear-outfit") clearOutfit();
     else if (action === "closet-layer") await saveLayerToCloset();
     else if (action === "wish-layer") {
       const layer = selectedLayer();
