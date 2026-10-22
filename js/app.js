@@ -138,11 +138,25 @@ function placeToast() {
     document.body.style.removeProperty("--toast-top");
     return;
   }
-  document.body.classList.add("sheet-open");
   const toast = document.getElementById("toast");
-  const height = toast && !toast.hidden ? toast.offsetHeight : 48;
-  const top = Math.max(8, sheet.getBoundingClientRect().top - height - 10);
-  document.body.style.setProperty("--toast-top", `${Math.round(top)}px`);
+  const visible = Boolean(toast && !toast.hidden);
+  if (!visible) {
+    sheet.style.maxHeight = "";
+    document.body.classList.remove("sheet-open");
+    document.body.style.removeProperty("--toast-top");
+    return;
+  }
+  document.body.classList.add("sheet-open");
+  sheet.style.maxHeight = "";
+  const height = toast.offsetHeight || 48;
+  let rect = sheet.getBoundingClientRect();
+  const needed = height + 18;
+  if (rect.top < needed) {
+    sheet.style.maxHeight = `${Math.max(180, Math.round(window.innerHeight - needed))}px`;
+    rect = sheet.getBoundingClientRect();
+  }
+  const top = Math.max(8, Math.round(rect.top - height - 10));
+  document.body.style.setProperty("--toast-top", `${top}px`);
 }
 
 function hideDemoToast() {
