@@ -3,7 +3,8 @@ import { db } from "./db.js";
 import { downscaleImage, loadImage } from "./images.js";
 import { buildStamps, hasFaceAnchor } from "./makeup.js?v=6";
 import { PLACEMENT_VERSION, applyWear, needsReseat, normalizeLayers, scaleCap } from "./placement.js?v=6";
-import { providers } from "./providers.js?v=6";
+import { categoryForSlot, formatPrice, pieceQuery } from "./product-search.js?v=7";
+import { providers } from "./providers.js?v=7";
 import { ageBand, ageOn, emptyCircle, isTeen, profileFromBirthdate } from "./safety.js";
 import { clamp, escapeHtml, mapsSearchUrl, safeHttpUrl, uid } from "./util.js";
 import { buildWishlistRecord, firstChoice, wishlistToForm } from "./wishlist-model.js";
@@ -56,6 +57,7 @@ let pendingItem = null;
 let pendingCategory = "top";
 let addFrom = "studio";
 let wishSource = null;
+let upgradeOffers = new Map();
 let pick = null;
 const pointers = new Map();
 let gesture = null;
@@ -606,10 +608,23 @@ function ribbonHtml() {
   return `<div class="ribbon">${steps.map(([done, label]) => `<span class="${done ? "done" : ""}">${label}</span>`).join("")}<button type="button" class="btn ghost small" data-action="dismiss-ribbon">Hide</button></div>`;
 }
 
+function wornPieces(layers) {
+  return (layers || []).filter((layer) => layer && layer.kind !== "stamp");
+}
+
+function upgradeListHtml(layers) {
+  const pieces = wornPieces(layers);
+  if (!pieces.length) return "";
+  return `<div class="piece-upgrades">${pieces.map((layer) => {
+    const name = layer.name || pieceQuery(layer).slotLabel;
+    return `<div class="piece-upgrade"><span class="piece-name">${escapeHtml(name)}</span><button type="button" class="chip upgrade-chip" data-action="upgrade" data-id="${escapeHtml(layer.id)}" aria-label="Upgrade ${escapeHtml(name)}">Upgrade</button></div>`;
+  }).join("")}</div>`;
+}
+
 function controlsHtml() {
   const sorted = [...state.studio.layers].sort((a, b) => (a.z || 0) - (b.z || 0));
   const list = sorted.length
-    ? `<div class="scroller">${sorted.map((layer) => `<button type="button" class="chip ${layer.id === state.studio.selectedId ? "active" : ""}" data-action="select-layer" data-id="${layer.id}">${escapeHtml(layer.name || "Piece")}</button>`).join("")}</div>`
+    ? `<div class="scroller">${sorted.map((layer) => `<button type="button" class="chip ${layer.id === state.studio.selectedId ? "active" : ""}" data-action="select-layer" data-id="${layer.id}">${escapeHtml(layer.name || "Piece")}</button>`).join("")}</div>${upgradeListHtml(sorted)}`
     : "";
   const layer = selectedLayer();
   if (!layer) return `${list}<p class="hint">Tap a piece on the photo, or add one below. Sliders are here if pinch is fiddly.</p>`;
@@ -697,7 +712,7 @@ function wishCard(record) {
     ${mapsUrl ? `<a class="btn small" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener noreferrer">Open in Maps</a>` : ""}
     ${record.jewelry ? `<p class="hint">${escapeHtml([record.jewelry.metal, record.jewelry.finishStone, record.jewelry.sizeOrLength].filter(Boolean).join(" · "))}</p>` : ""}
     <div class="card-actions">
-      ${online?.url ? `<a class="btn ghost small" href="${escapeHtml(online.url)}" target="_blank" rel="noopener noreferrer">View item</a>` : ""}
+      ${online?.url && providers.affiliate.wrap(online.url) ? `<a class="btn ghost small" href="${escapeHtml(providers.affiliate.wrap(online.url))}" target="_blank" rel="noopener noreferrer">View item</a>` : ""}
       <button type="button" class="btn ghost small" data-action="edit-wish" data-id="${record.id}">Edit</button>
       <button type="button" class="btn ghost small" data-action="delete-wish" data-id="${record.id}">Delete</button>
     </div>
@@ -724,6 +739,7 @@ function lookCard(look) {
     <strong>${escapeHtml(look.name)}</strong>
     <div class="meta-line"><span class="tag ${escapeHtml(look.occasion)}">${escapeHtml(occasionLabel(look.occasion))}</span></div>
     <p class="hint">${tally.heart} heart · ${tally.meh} meh · ${tally.no} no</p>
+    ${upgradeListHtml(look.layers)}
     <div class="card-actions">
       <button type="button" class="btn small" data-action="open-look" data-id="${look.id}">Open</button>
       <button type="button" class="btn ghost small" data-action="go" data-route="vote/${look.id}">Vote</button>
@@ -746,6 +762,7 @@ function voteHtml(id) {
     <p class="tag ${escapeHtml(look.occasion)}">${escapeHtml(occasionLabel(look.occasion))}</p>
     <h2>Fit or Miss?</h2>
     <p class="lede">${escapeHtml(look.name)}</p>
+    ${upgradeListHtml(look.layers)}
     <div class="vote-buttons">
       ${button("heart", "Heart", "♥")}
       ${button("meh", "Meh", "–")}
@@ -1296,19 +1313,97 @@ async function saveLayerToCloset() {
   showToast("Saved to My Closet");
 }
 
+function findWornPiece(id) {
+  if (!id) return null;
+  const studio = wornPieces(state.studio.layers).find((layer) => layer.id === id);
+  if (studio) return studio;
+  for (const look of state.looks) {
+    const layer = wornPieces(look.layers).find((item) => item.id === id);
+    if (layer) return layer;
+  }
+  return null;
+}
+
+function occasionForPiece(layer) {
+  const sample = sampleById(layer?.refId);
+  const look = state.looks.find((item) => wornPieces(item.layers).some((entry) => entry.id === layer?.id));
+  const studioOccasion = wornPieces(state.studio.layers).some((item) => item.id === layer?.id) ? state.studio.occasion : "";
+  return [sample?.occasion, look?.occasion, studioOccasion].filter(Boolean).join(" ");
+}
+
+function searchShowsExamples() {
+  const search = providers.productSearch;
+  if (typeof search?.exampleData === "function") return search.exampleData();
+  return search?.id === "demo";
+}
+
+async function openUpgrade(layerId) {
+  const layer = findWornPiece(layerId);
+  if (!layer) return;
+  const request = pieceQuery({ ...layer, occasion: occasionForPiece(layer) });
+  let items = [];
+  try {
+    items = await providers.productSearch.search({
+      query: request.query,
+      type: request.type,
+      color: request.color,
+      teen: isTeen(state.profile),
+    });
+  } catch {
+    items = [];
+  }
+  items = items.filter((item) => !isTeen(state.profile) || (!item.adultSponsored && item.audience !== "18+" && item.sponsorCategory !== "adult"));
+  upgradeOffers = new Map(items.map((item) => [item.id, item]));
+  const cards = items.map((item) => {
+    const href = providers.affiliate.wrap(item.url);
+    return `<article class="upgrade-card">
+      ${item.image ? `<img alt="" src="${escapeHtml(item.image)}">` : `<div class="ph"></div>`}
+      <strong>${escapeHtml(item.title)}</strong>
+      <p class="upgrade-price">${escapeHtml(formatPrice(item.price, item.currency))}</p>
+      <p class="hint">${escapeHtml(item.store)}</p>
+      ${href ? `<a class="btn small" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">View at store</a>` : ""}
+      <button type="button" class="btn ghost small" data-action="upgrade-wish" data-id="${escapeHtml(item.id)}" data-layer="${escapeHtml(layer.id)}">Add to wishlist</button>
+    </article>`;
+  }).join("");
+  openSheet(`
+    <h2>Upgrade this piece</h2>
+    <p class="hint">${escapeHtml(layer.name || request.slotLabel)} · ${escapeHtml(request.slotLabel)}</p>
+    ${searchShowsExamples() ? `<p class="example-label">Example items</p>` : ""}
+    ${items.length ? `<div class="scroller upgrade-scroller" aria-label="Similar pieces">${cards}</div>` : `<p class="hint">No similar pieces yet.</p>`}
+    <p class="disclose">We may earn a commission</p>`);
+}
+
+function openUpgradeWish(productId, layerId) {
+  const offer = upgradeOffers.get(productId);
+  const layer = findWornPiece(layerId);
+  if (!offer) return;
+  const request = pieceQuery({ ...(layer || {}), occasion: layer ? occasionForPiece(layer) : "" });
+  openWishSheet({
+    name: offer.title,
+    category: categoryForSlot(offer.type || request.type),
+    store: offer.store,
+    price: formatPrice(offer.price, offer.currency),
+    colorFirst: offer.color || request.color || "",
+    sizeFirst: "",
+    link: providers.affiliate.wrap(offer.url),
+    lookId: state.studio.lookId || state.looks.find((look) => wornPieces(look.layers).some((item) => item.id === layerId))?.id || "",
+    itemId: layer?.source === "item" ? layer.refId : "",
+  });
+}
+
 function openWishSheet(source) {
   wishSource = source || {};
   const form = source?.variants ? wishlistToForm(source) : {
     name: source?.name || "",
     category: source?.category || "dress",
-    store: "",
-    price: "",
-    sizeFirst: "",
-    colorFirst: "",
+    store: source?.store || "",
+    price: source?.price || "",
+    sizeFirst: source?.sizeFirst || "",
+    colorFirst: source?.colorFirst || "",
     altSizes: "",
     altColors: "",
     fitNotes: "",
-    link: "",
+    link: source?.link || "",
     nearbyStore: "",
     address: "",
     nearbyNote: "",
@@ -1644,6 +1739,8 @@ async function onClick(event) {
     else if (action === "delete-layer") deleteSelected();
     else if (action === "clear-outfit") clearOutfit();
     else if (action === "closet-layer") await saveLayerToCloset();
+    else if (action === "upgrade") await openUpgrade(button.dataset.id);
+    else if (action === "upgrade-wish") openUpgradeWish(button.dataset.id, button.dataset.layer);
     else if (action === "wish-layer") {
       const layer = selectedLayer();
       if (!layer) return;
@@ -1923,6 +2020,7 @@ function sharedHtml(token) {
     <h2>${escapeHtml(look.name)}</h2>
     ${src ? `<img alt="${escapeHtml(look.name)}" src="${src}">` : ""}
     <p class="hint">Visible because you are an approved friend. This is not a public page.</p>
+    ${upgradeListHtml(look.layers)}
     ${footerHtml()}
   </section>`;
 }

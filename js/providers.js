@@ -2,9 +2,17 @@
  * WingsCrew Looks provider seam.
  *
  * The screens call `providers.avatar`, `providers.tryOn`, `providers.makeup`,
- * `providers.background`, and `providers.circle`. Swap any of them for a hosted
- * model later without rewriting the pages. This prototype ships local
- * implementations only: no API keys, and photos never leave the device.
+ * `providers.background`, `providers.circle`, and `providers.productSearch`.
+ * Swap any of them for a hosted model later without rewriting the pages.
+ * This prototype ships local implementations only: no API keys, and photos
+ * never leave the device.
+ *
+ * Product search returns similar store items for "Upgrade this piece".
+ * `providers.productSearch.search({ query, type, color, priceMax })` uses
+ * labeled example data until `window.WCL_SEARCH_URL` is set, then it calls
+ * that backend. Assign `providers.productSearch = remoteProductSearch` to
+ * force the remote stub. `providers.affiliate.wrap(url)` runs on every
+ * outbound store link (passthrough for now).
  *
  * Suggested later replacements (not wired up):
  * - avatar: a Gemini image edit that proposes extra poses from the front photo
@@ -18,6 +26,8 @@
 import { downscaleImage } from "./images.js";
 import { buildStamps, MAKEUP_PRESETS } from "./makeup.js?v=6";
 import { hitTest, paint, paintToBlob } from "./paint.js?v=6";
+import { runProductSearch, usesExampleCatalog } from "./product-search.js?v=7";
+import { safeHttpUrl } from "./util.js";
 import {
   acceptInvite,
   allowLookShare,
@@ -214,10 +224,54 @@ export const localCircleProvider = {
   visiblePacks,
 };
 
+/**
+ * Outbound store links pass through here. Replace `wrap` when an affiliate
+ * program exists. The default returns the same http(s) URL.
+ */
+export const affiliate = {
+  id: "passthrough",
+  wrap(url) {
+    return safeHttpUrl(url);
+  },
+};
+
+/** Calls `window.WCL_SEARCH_URL`. Returns nothing until that URL is set. */
+export const remoteProductSearch = {
+  id: "remote",
+  label: "Store search",
+  exampleData() {
+    return false;
+  },
+  search(request) {
+    return runProductSearch(request, { source: "remote" });
+  },
+};
+
+/**
+ * Example items, or the remote catalog when `window.WCL_SEARCH_URL` is set.
+ * `teen: true` on the request hides adult sponsored items.
+ */
+export const productSearch = {
+  get id() {
+    return usesExampleCatalog() ? "demo" : "remote";
+  },
+  get label() {
+    return usesExampleCatalog() ? "Example items" : "Store search";
+  },
+  exampleData() {
+    return usesExampleCatalog();
+  },
+  search(request) {
+    return runProductSearch(request);
+  },
+};
+
 export const providers = {
   avatar: localAvatarProvider,
   tryOn: localTryOnProvider,
   makeup: localMakeupProvider,
   background: localBackgroundProvider,
   circle: localCircleProvider,
+  productSearch,
+  affiliate,
 };

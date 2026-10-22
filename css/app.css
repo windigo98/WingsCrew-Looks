@@ -244,6 +244,53 @@ main {
 
 .sample-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 
+.piece-upgrades { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.piece-upgrade { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.piece-name { font-size: 14px; font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.upgrade-chip { flex: none; padding: 5px 10px; font-size: 12px; min-height: 32px; }
+.example-label {
+  display: inline-flex;
+  margin: 0 0 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--paper-deep);
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.upgrade-scroller { scroll-snap-type: x mandatory; }
+.upgrade-card {
+  flex: 0 0 168px;
+  scroll-snap-align: start;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 8px;
+}
+.upgrade-card img, .upgrade-card .ph {
+  width: 100%;
+  height: 112px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: var(--paper);
+}
+.upgrade-card strong { display: block; margin-top: 8px; font-size: 14px; line-height: 1.25; }
+.upgrade-price { margin: 4px 0 0; font-weight: 700; }
+.upgrade-card .hint { margin: 2px 0 0; }
+.upgrade-card .btn, .upgrade-card a.btn {
+  width: 100%;
+  margin-top: 6px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+}
+.disclose { color: var(--muted); font-size: 12px; margin: 12px 0 4px; }
+
 .studio { display: flex; flex-direction: column; gap: 14px; padding-bottom: 84px; }
 .studio-actions {
   position: fixed;
