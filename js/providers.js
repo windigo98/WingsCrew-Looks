@@ -16,8 +16,8 @@
  * ignore `paint`. Keep the returned image badged "AI preview / WingsCrew Looks".
  */
 import { downscaleImage } from "./images.js";
-import { buildStamps, MAKEUP_PRESETS } from "./makeup.js";
-import { hitTest, paint, paintToBlob } from "./paint.js";
+import { buildStamps, MAKEUP_PRESETS } from "./makeup.js?v=6";
+import { hitTest, paint, paintToBlob } from "./paint.js?v=6";
 import {
   acceptInvite,
   allowLookShare,

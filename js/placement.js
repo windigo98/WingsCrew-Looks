@@ -9,19 +9,19 @@
  * stored a multiplier of about 42% of the photo width (usually 0.9–1.2).
  * Reading those old numbers as a height fraction covers the person.
  */
-import { faceMetrics } from "./makeup.js";
+import { faceMetrics } from "./makeup.js?v=6";
 import { clamp } from "./util.js";
 
-export const PLACEMENT_VERSION = 3;
+export const PLACEMENT_VERSION = 4;
 
 /** Anything above this was saved with the old width multiplier. */
 export const LEGACY_SCALE = 0.75;
 
 const FULL_BODY = {
-  top: { x: 0.5, y: 0.46, scale: 0.18 },
+  top: { x: 0.5, y: 0.48, scale: 0.18 },
   bottom: { x: 0.5, y: 0.72, scale: 0.34 },
-  dress: { x: 0.5, y: 0.58, scale: 0.48 },
-  outerwear: { x: 0.5, y: 0.48, scale: 0.22 },
+  dress: { x: 0.5, y: 0.63, scale: 0.48 },
+  outerwear: { x: 0.5, y: 0.5, scale: 0.22 },
   shoes: { x: 0.5, y: 0.915, scale: 0.06 },
   hat: { x: 0.5, y: 0.07, scale: 0.08 },
   bag: { x: 0.74, y: 0.52, scale: 0.15 },
@@ -44,6 +44,9 @@ const SCALE_CAP = {
 };
 
 const FACE_WEAR = new Set(["hat", "ears", "neck", "eyes"]);
+
+/** Where the straw hat's brim meets the head, as a fraction down the hat image. */
+const HAT_BRIM = 0.58;
 
 export function wearSlot(layer) {
   const category = layer?.category || "accessory";
@@ -91,9 +94,10 @@ function anchorToFace(face, wear, photoSlot) {
   const faceHeight = face.ry * 2;
   const close = photoSlot === "face" || photoSlot === "demo-face";
   if (wear === "hat") {
-    const scale = Math.min(close ? 0.26 : 0.13, faceHeight * 0.85);
-    const y = face.cy - face.ry - scale * 0.12;
-    return { x: face.cx, y: clamp(y, scale / 2, 0.98), scale };
+    const scale = Math.min(close ? 0.2 : 0.15, faceHeight * 0.85);
+    const crown = Number.isFinite(face.crown) ? face.crown : face.cy - face.ry - faceHeight * 0.32;
+    const y = crown - (HAT_BRIM - 0.5) * scale;
+    return { x: face.hatX ?? face.cx, y: clamp(y, 0, 0.98), scale };
   }
   if (wear === "ears") {
     const scale = Math.min(close ? 0.16 : 0.1, faceHeight * 0.55);

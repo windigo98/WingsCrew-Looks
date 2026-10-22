@@ -1,9 +1,9 @@
-import { CATEGORIES, DEMO_ART_VERSION, DEMO_POSES, OCCASIONS, PACKS, PHOTO_SLOTS, SAMPLES, categoryLabel, occasionLabel, sampleById, sortPhotos } from "./catalog.js";
+import { CATEGORIES, DEMO_ART_VERSION, DEMO_POSES, OCCASIONS, PACKS, PHOTO_SLOTS, SAMPLES, categoryLabel, occasionLabel, sampleById, sortPhotos } from "./catalog.js?v=6";
 import { db } from "./db.js";
 import { downscaleImage, loadImage } from "./images.js";
-import { buildStamps, hasFaceAnchor } from "./makeup.js";
-import { PLACEMENT_VERSION, applyWear, needsReseat, normalizeLayers, scaleCap } from "./placement.js";
-import { providers } from "./providers.js";
+import { buildStamps, hasFaceAnchor } from "./makeup.js?v=6";
+import { PLACEMENT_VERSION, applyWear, needsReseat, normalizeLayers, scaleCap } from "./placement.js?v=6";
+import { providers } from "./providers.js?v=6";
 import { ageBand, ageOn, emptyCircle, isTeen, profileFromBirthdate } from "./safety.js";
 import { clamp, escapeHtml, mapsSearchUrl, safeHttpUrl, uid } from "./util.js";
 import { buildWishlistRecord, firstChoice, wishlistToForm } from "./wishlist-model.js";

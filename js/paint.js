@@ -1,5 +1,5 @@
-import { faceMetrics, getPreset } from "./makeup.js";
-import { LEGACY_SCALE, defaultPlacement } from "./placement.js";
+import { faceMetrics, getPreset } from "./makeup.js?v=6";
+import { LEGACY_SCALE, defaultPlacement } from "./placement.js?v=6";
 
 const STAMP_RATIO = { blush: 0.72, lip: 0.42, shadow: 0.46, highlight: 0.72 };
 

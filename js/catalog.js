@@ -71,7 +71,7 @@ export const DEMO_POSES = [
 ];
 
 /** Bump when the demo drawings change so phones refresh the stored copies. */
-export const DEMO_ART_VERSION = 2;
+export const DEMO_ART_VERSION = 3;
 
 const SLOT_ORDER = ["front", "side", "face", "extra", "demo-front", "demo-side", "demo-face"];
 

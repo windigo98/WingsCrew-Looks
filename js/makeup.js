@@ -75,12 +75,20 @@ export function getPreset(id) {
 /**
  * Where the face sits on a guided pose, as fractions of the photo.
  * null means we do not know, and makeup must not be drawn.
- * Full-body numbers match the demo drawings (chin near 0.29).
+ * Full-body numbers match the demo drawings (chin just above the shoulders).
+ * crown is the top of the hair, where a hat brim rests. hatX is the
+ * crown's horizontal center when it is not the face center (side pose).
  */
 export function faceMetrics(slot) {
-  if (slot === "face" || slot === "demo-face") return { cx: 0.5, cy: 0.44, rx: 0.24, ry: 0.2 };
-  if (slot === "side" || slot === "demo-side") return { cx: 0.6, cy: 0.2, rx: 0.12, ry: 0.08 };
-  if (slot === "front" || slot === "demo-front") return { cx: 0.5, cy: 0.1975, rx: 0.16, ry: 0.09 };
+  if (slot === "face" || slot === "demo-face") {
+    return { cx: 0.5, cy: 286 / 640, rx: 118 / 480, ry: 132 / 640, crown: 40 / 640 };
+  }
+  if (slot === "side" || slot === "demo-side") {
+    return { cx: 214 / 400, cy: 246 / 800, rx: 46 / 400, ry: 64 / 800, crown: 136 / 800, hatX: 0.53 };
+  }
+  if (slot === "front" || slot === "demo-front") {
+    return { cx: 0.5, cy: 240 / 800, rx: 62 / 400, ry: 70 / 800, crown: 124 / 800 };
+  }
   return null;
 }
 
