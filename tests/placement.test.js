@@ -18,9 +18,12 @@ test("a hat rests on the crown and stays above the eyes", () => {
   for (const slot of ["demo-front", "demo-side", "demo-face", "front", "side", "face"]) {
     const face = faceMetrics(slot);
     const hat = defaultPlacement("hat", slot);
-    const brim = hat.y + (0.58 - 0.5) * hat.scale;
-    assert.ok(Math.abs(brim - face.crown) < 0.015, `${slot} brim ${brim} crown ${face.crown}`);
-    assert.ok(brim < face.cy - face.ry, `${slot} brim is inside the hair`);
+    const band = hat.y + (0.51 - 0.5) * hat.scale;
+    const brimBottom = hat.y + (0.81 - 0.5) * hat.scale;
+    assert.ok(band > face.crown, `${slot} band ${band} is above the hair ${face.crown}`);
+    assert.ok(band < face.crown + hat.scale * 0.25, `${slot} band ${band} is snug on ${face.crown}`);
+    assert.ok(brimBottom > face.crown + 0.02, `${slot} brim ${brimBottom} overlaps the hair`);
+    assert.ok(brimBottom < face.cy - face.ry * 0.2, `${slot} brim covers the eyes`);
     assert.ok(hat.y + hat.scale / 2 < face.cy, `${slot} covers the eyes`);
     assert.ok(hat.scale <= face.ry * 2, slot);
     assert.ok(face.crown < face.cy - face.ry, `${slot} crown is above the face`);
@@ -57,8 +60,8 @@ test("demo drawings are the three guided poses", () => {
 test("hats, hoops, pearls, and glasses sit on the face", () => {
   const face = faceMetrics("demo-front");
   const hat = defaultPlacement("hat", "demo-front");
-  const brim = hat.y + (0.58 - 0.5) * hat.scale;
-  assert.ok(Math.abs(brim - face.crown) < 0.015, "hat covers the eyes");
+  const band = hat.y + (0.51 - 0.5) * hat.scale;
+  assert.ok(band > face.crown && band < face.crown + 0.04, "hat sits on the hair");
   assert.ok(hat.y + hat.scale / 2 < face.cy, "hat covers the eyes");
   assert.ok(hat.scale <= face.ry * 2);
 
@@ -117,8 +120,9 @@ test("an old piled-up look is reseated to one sensible outfit", () => {
   ].map((layer) => ({ ...layer, scale: 1.05, x: 0.5, y: 0.45 }));
   assert.equal(needsReseat({ placementVersion: 2, layers: pile }), true);
   assert.equal(needsReseat({ placementVersion: 3, layers: [{ kind: "item", scale: 0.22, category: "outerwear" }] }), true);
-  assert.equal(needsReseat({ placementVersion: 4, layers: [{ kind: "item", scale: 1.1, category: "top" }] }), true);
-  assert.equal(needsReseat({ placementVersion: 4, layers: [{ kind: "item", scale: 0.22, category: "outerwear" }] }), false);
+  assert.equal(needsReseat({ placementVersion: 4, layers: [{ kind: "item", scale: 0.22, category: "outerwear" }] }), true);
+  assert.equal(needsReseat({ placementVersion: 5, layers: [{ kind: "item", scale: 1.1, category: "top" }] }), true);
+  assert.equal(needsReseat({ placementVersion: 5, layers: [{ kind: "item", scale: 0.22, category: "outerwear" }] }), false);
 
   const face = faceMetrics("demo-front");
   const chin = face.cy + face.ry;

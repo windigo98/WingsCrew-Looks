@@ -12,7 +12,7 @@
 import { faceMetrics } from "./makeup.js?v=6";
 import { clamp } from "./util.js";
 
-export const PLACEMENT_VERSION = 4;
+export const PLACEMENT_VERSION = 5;
 
 /** Anything above this was saved with the old width multiplier. */
 export const LEGACY_SCALE = 0.75;
@@ -45,8 +45,12 @@ const SCALE_CAP = {
 
 const FACE_WEAR = new Set(["hat", "ears", "neck", "eyes"]);
 
-/** Where the straw hat's brim meets the head, as a fraction down the hat image. */
-const HAT_BRIM = 0.58;
+/**
+ * The dark band at the base of the straw hat's crown, as a fraction down the image.
+ * The pale brim hangs below this line. Seating the band on the hair puts that brim
+ * over the hair instead of in the empty background above it.
+ */
+const HAT_BAND = 0.51;
 
 export function wearSlot(layer) {
   const category = layer?.category || "accessory";
@@ -96,7 +100,8 @@ function anchorToFace(face, wear, photoSlot) {
   if (wear === "hat") {
     const scale = Math.min(close ? 0.2 : 0.15, faceHeight * 0.85);
     const crown = Number.isFinite(face.crown) ? face.crown : face.cy - face.ry - faceHeight * 0.32;
-    const y = crown - (HAT_BRIM - 0.5) * scale;
+    const sink = scale * 0.12;
+    const y = crown + sink - (HAT_BAND - 0.5) * scale;
     return { x: face.hatX ?? face.cx, y: clamp(y, 0, 0.98), scale };
   }
   if (wear === "ears") {

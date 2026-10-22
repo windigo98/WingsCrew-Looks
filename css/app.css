@@ -479,6 +479,11 @@ input[type="range"] { width: 100%; accent-color: var(--rose); }
 }
 .toast.show { display: flex; }
 body.in-studio .toast { bottom: calc(var(--nav-h) + 78px); }
+body.sheet-open .toast,
+body.in-studio.sheet-open .toast {
+  top: var(--toast-top, 12px);
+  bottom: auto;
+}
 .toast button { pointer-events: auto; }
 .toast button { background: white; color: var(--ink); border: 0; border-radius: 999px; padding: 6px 10px; font-weight: 700; }
 

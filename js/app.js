@@ -2,9 +2,9 @@ import { CATEGORIES, DEMO_ART_VERSION, DEMO_POSES, OCCASIONS, PACKS, PHOTO_SLOTS
 import { db } from "./db.js";
 import { downscaleImage, loadImage } from "./images.js";
 import { buildStamps, hasFaceAnchor } from "./makeup.js?v=6";
-import { PLACEMENT_VERSION, applyWear, needsReseat, normalizeLayers, scaleCap } from "./placement.js?v=6";
+import { PLACEMENT_VERSION, applyWear, needsReseat, normalizeLayers, scaleCap } from "./placement.js?v=8";
 import { categoryForSlot, formatPrice, pieceQuery } from "./product-search.js?v=7";
-import { providers } from "./providers.js?v=7";
+import { providers } from "./providers.js?v=8";
 import { ageBand, ageOn, emptyCircle, isTeen, profileFromBirthdate } from "./safety.js";
 import { clamp, escapeHtml, mapsSearchUrl, safeHttpUrl, uid } from "./util.js";
 import { buildWishlistRecord, firstChoice, wishlistToForm } from "./wishlist-model.js";
@@ -125,6 +125,31 @@ function mediaUrl(key, blob) {
   return url;
 }
 
+function sheetIsOpen() {
+  const sheet = document.getElementById("sheet-root");
+  const confirm = document.getElementById("confirm-root");
+  return Boolean((sheet && !sheet.hidden) || (confirm && !confirm.hidden));
+}
+
+function placeToast() {
+  const sheet = document.querySelector("#sheet-root:not([hidden]) .sheet, #confirm-root:not([hidden]) .confirm-card");
+  if (!sheet) {
+    document.body.classList.remove("sheet-open");
+    document.body.style.removeProperty("--toast-top");
+    return;
+  }
+  document.body.classList.add("sheet-open");
+  const toast = document.getElementById("toast");
+  const height = toast && !toast.hidden ? toast.offsetHeight : 48;
+  const top = Math.max(8, sheet.getBoundingClientRect().top - height - 10);
+  document.body.style.setProperty("--toast-top", `${Math.round(top)}px`);
+}
+
+function hideDemoToast() {
+  const toast = document.getElementById("toast");
+  if (toast && !toast.hidden && toast.textContent.includes("Demo drawings are ready")) hideToast();
+}
+
 function hideToast() {
   const toast = document.getElementById("toast");
   if (!toast) return;
@@ -135,6 +160,7 @@ function hideToast() {
 function showToast(message, { undo } = {}) {
   const toast = document.getElementById("toast");
   if (!toast) return;
+  if (message === "Demo drawings are ready" && sheetIsOpen()) return;
   toast.hidden = false;
   toast.classList.add("show");
   toast.innerHTML = `<span>${escapeHtml(message)}</span>${undo ? `<button type="button" data-undo>Undo</button>` : ""}`;
@@ -152,6 +178,7 @@ function showToast(message, { undo } = {}) {
     }
   });
   toastTimer = setTimeout(hideToast, undo ? 4200 : 2200);
+  placeToast();
 }
 
 function askConfirm({ title, body, confirmLabel, danger }) {
@@ -167,10 +194,13 @@ function askConfirm({ title, body, confirmLabel, danger }) {
         <button type="button" class="btn ${danger ? "rose" : ""}" data-yes>${escapeHtml(confirmLabel)}</button>
       </div>
     </div>`;
+  hideDemoToast();
+  placeToast();
   return new Promise((resolve) => {
     const finish = (value) => {
       root.hidden = true;
       root.innerHTML = "";
+      placeToast();
       resolve(value);
     };
     root.querySelector("[data-yes]").onclick = () => finish(true);
@@ -182,6 +212,8 @@ function openSheet(html) {
   const root = document.getElementById("sheet-root");
   root.hidden = false;
   root.innerHTML = `<div class="sheet-backdrop" data-sheet-close></div><div class="sheet" role="dialog" aria-modal="true"><div class="grabber"></div>${html}</div>`;
+  hideDemoToast();
+  placeToast();
   return root;
 }
 
@@ -191,6 +223,7 @@ function closeSheet() {
   root.innerHTML = "";
   if (pendingItem?.url) URL.revokeObjectURL(pendingItem.url);
   pendingItem = null;
+  placeToast();
 }
 
 function saveDraft() {
