@@ -4,7 +4,8 @@ import { downscaleImage, loadImage } from "./images.js";
 import { buildStamps, hasFaceAnchor } from "./makeup.js?v=6";
 import { PLACEMENT_VERSION, applyWear, needsReseat, normalizeLayers, scaleCap } from "./placement.js?v=8";
 import { categoryForSlot, formatPrice, pieceQuery, showsEtsyNotice } from "./product-search.js?v=8";
-import { providers } from "./providers.js?v=9";
+import { providers } from "./providers.js?v=10";
+import { DEMO_SHARE_LABEL } from "./share-links.js?v=1";
 import { ageBand, ageOn, emptyCircle, isTeen, profileFromBirthdate } from "./safety.js";
 import { clamp, escapeHtml, mapsSearchUrl, safeHttpUrl, uid } from "./util.js";
 import { buildWishlistRecord, firstChoice, wishlistToForm } from "./wishlist-model.js";
@@ -41,6 +42,8 @@ const state = {
   looks: [],
   wishes: [],
   votes: [],
+  shareCounts: {},
+  publicVote: null,
   dismissedRibbon: false,
   lookFilter: "all",
   sampleFilter: "all",
@@ -110,7 +113,7 @@ function storeAnchor(url, label, className) {
 function parseRoute() {
   const raw = (location.hash || "#dress").replace(/^#\/?/, "");
   const [path, id] = raw.split("/");
-  if (!["dress", "photos", "closet", "wishlist", "looks", "vote", "friends", "invite", "parent", "shared"].includes(path)) return { path: "dress", id: "" };
+  if (!["dress", "photos", "closet", "wishlist", "looks", "vote", "friends", "invite", "parent", "shared", "v"].includes(path)) return { path: "dress", id: "" };
   return { path, id: id || "" };
 }
 
@@ -375,6 +378,14 @@ function render() {
     view.innerHTML = parentHtml(route.id);
     return;
   }
+  if (route.path === "v") {
+    header.hidden = true;
+    nav.hidden = true;
+    document.body.classList.remove("onboarding");
+    document.body.dataset.route = "v";
+    view.innerHTML = publicVoteHtml(route.id);
+    return;
+  }
   const onboarded = Boolean(state.profile?.onboarded) && !state.error;
   header.hidden = !onboarded;
   nav.hidden = !onboarded;
@@ -398,8 +409,13 @@ function render() {
   if (route.path === "photos") view.innerHTML = photosHtml();
   else if (route.path === "closet") view.innerHTML = closetHtml();
   else if (route.path === "wishlist") view.innerHTML = wishlistHtml();
-  else if (route.path === "looks") view.innerHTML = looksHtml();
-  else if (route.path === "vote") view.innerHTML = voteHtml(route.id);
+  else if (route.path === "looks") {
+    view.innerHTML = looksHtml();
+    queueShareCounts();
+  } else if (route.path === "vote") {
+    view.innerHTML = voteHtml(route.id);
+    queueShareCounts();
+  }
   else if (route.path === "friends") view.innerHTML = friendsHtml();
   else if (route.path === "invite") view.innerHTML = inviteHtml(route.id);
   else if (route.path === "shared") view.innerHTML = sharedHtml(route.id);
@@ -798,10 +814,12 @@ function lookCard(look) {
     <strong>${escapeHtml(look.name)}</strong>
     <div class="meta-line"><span class="tag ${escapeHtml(look.occasion)}">${escapeHtml(occasionLabel(look.occasion))}</span></div>
     <p class="hint">${tally.heart} heart · ${tally.meh} meh · ${tally.no} no</p>
+    ${shareCountsHtml(look.id)}
     ${upgradeListHtml(look.layers)}
     <div class="card-actions">
       <button type="button" class="btn small" data-action="open-look" data-id="${look.id}">Open</button>
       <button type="button" class="btn ghost small" data-action="go" data-route="vote/${look.id}">Vote</button>
+      ${shareLinkButtons(look.id)}
       <button type="button" class="btn ghost small" data-action="share-look" data-id="${look.id}">Share</button>
       <button type="button" class="btn ghost small" data-action="delete-look" data-id="${look.id}">Delete</button>
     </div>
@@ -827,10 +845,50 @@ function voteHtml(id) {
       ${button("meh", "Meh", "–")}
       ${button("no", "No", "×")}
     </div>
-    <p class="hint">${isTeen(state.profile) ? "Only you and approved friends can vote. Votes from anyone else are ignored. Nothing here is public." : "Your vote stays on this device. In-app invites and live votes from friends need a backend in the next phase."}</p>
+    <p class="hint">${isTeen(state.profile) ? "Only you and approved friends can vote. Votes from anyone else are ignored. Nothing here is public." : "Heart, meh, and no stay on this device. Share link collects Fit or Miss from anyone with the link."}</p>
+    ${shareCountsHtml(look.id)}
+    ${shareLinkButtons(look.id, "full")}
     <button type="button" class="btn full" data-action="share-look" data-id="${look.id}">Share image</button>
     ${footerHtml()}
   </section>`;
+}
+
+function shareLinkButtons(lookId, size = "small") {
+  if (isTeen(state.profile)) return "";
+  const width = size === "full" ? "full" : "small";
+  const active = state.shareCounts?.[lookId];
+  return `<button type="button" class="btn ${width}" data-action="share-link" data-id="${escapeHtml(lookId)}">Share link</button>${active ? `<button type="button" class="btn ghost ${width}" data-action="revoke-link" data-id="${escapeHtml(lookId)}">Stop sharing</button>` : ""}`;
+}
+
+function shareCountsHtml(lookId) {
+  const row = state.shareCounts?.[lookId];
+  if (!row) return "";
+  const demo = providers.shareLinks.demo() ? `<p class="hint demo-share">${escapeHtml(DEMO_SHARE_LABEL)}</p>` : "";
+  return `<p class="hint share-counts">Fit ${row.fit} · Miss ${row.miss}</p>${demo}`;
+}
+
+let sharePaint = 0;
+function queueShareCounts() {
+  const paint = ++sharePaint;
+  refreshShareCounts(paint).catch(() => {});
+}
+
+async function refreshShareCounts(paint = ++sharePaint) {
+  const rows = providers.shareLinks.owned().filter((row) => row.lookId && !row.revoked);
+  const next = {};
+  for (const row of rows) {
+    const tally = await providers.shareLinks.counts(row.token);
+    if (!tally?.ok) continue;
+    next[row.lookId] = { token: row.token, fit: tally.fit, miss: tally.miss };
+  }
+  if (paint !== sharePaint) return false;
+  const prev = JSON.stringify(state.shareCounts || {});
+  const serialized = JSON.stringify(next);
+  state.shareCounts = next;
+  if (prev === serialized) return false;
+  const path = parseRoute().path;
+  if (path === "looks" || path === "vote") render();
+  return true;
 }
 
 function voteTally(lookId) {
@@ -1829,6 +1887,9 @@ async function onClick(event) {
       render();
     } else if (action === "open-look") openLook(button.dataset.id);
     else if (action === "share-look") await shareSaved(button.dataset.id);
+    else if (action === "share-link") await publishShareLink(button.dataset.id);
+    else if (action === "revoke-link") await revokeShareLink(button.dataset.id);
+    else if (action === "public-vote") await castPublicVote(button.dataset.token, button.dataset.choice);
     else if (action === "create-invite") await createFriendInvite();
     else if (action === "send-invite") await sendInviteLink(button.dataset.token);
     else if (action === "accept-invite") await acceptFriendInvite(button.dataset.token);
@@ -1910,6 +1971,58 @@ async function shareStudio() {
   if (result === "downloaded") showToast("Image downloaded");
 }
 
+async function publishShareLink(lookId) {
+  if (isTeen(state.profile)) {
+    showToast("Teen mode has no public link.");
+    return;
+  }
+  const look = state.looks.find((item) => item.id === lookId);
+  if (!look?.previewBlob) {
+    showToast("That look has no image yet.");
+    return;
+  }
+  const existing = providers.shareLinks.owned().find((item) => item.lookId === lookId && !item.revoked);
+  const published = existing
+    ? { token: existing.token, url: providers.shareLinks.url(existing.token) }
+    : await providers.shareLinks.publish({
+      lookId: look.id,
+      name: look.name,
+      occasion: look.occasion,
+      image: look.previewBlob,
+    });
+  if (published.error || !published.url) {
+    showToast(published.error || "Could not make that link.");
+    return;
+  }
+  await shareVoteLink(published.url);
+  await refreshShareCounts();
+}
+
+async function shareVoteLink(url) {
+  const text = "Fit or Miss? Vote on my look";
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "WingsCrew Looks", text, url });
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+    }
+  }
+  await copyText(url, "Link copied");
+}
+
+async function revokeShareLink(lookId) {
+  const existing = providers.shareLinks.owned().find((item) => item.lookId === lookId && !item.revoked);
+  if (!existing) return;
+  const result = await providers.shareLinks.revoke(existing.token);
+  if (!result?.ok) {
+    showToast(result?.error || "Could not stop sharing.");
+    return;
+  }
+  showToast("Sharing stopped");
+  await refreshShareCounts();
+}
+
 async function shareSaved(id) {
   const look = state.looks.find((item) => item.id === id);
   if (!look?.previewBlob) {
@@ -1961,6 +2074,8 @@ async function deleteWish(id) {
 async function deleteLook(id) {
   const removed = state.looks.find((look) => look.id === id);
   if (!removed) return;
+  const shared = providers.shareLinks.owned().find((item) => item.lookId === id && !item.revoked);
+  if (shared) await providers.shareLinks.revoke(shared.token);
   await db.deleteLook(id);
   const votes = state.votes.filter((vote) => vote.lookId === id);
   for (const vote of votes) await db.deleteVote(vote.id);
@@ -2066,6 +2181,86 @@ function parentHtml(token) {
     </div>
     ${footerHtml()}
   </section>`;
+}
+
+let publicVoteSeq = 0;
+
+function publicVoteHtml(token) {
+  const page = state.publicVote;
+  if (!page || page.token !== token || page.loading) {
+    if (!page || page.token !== token) {
+      state.publicVote = { token, loading: true };
+      loadPublicVote(token);
+    }
+    return `<section class="vote"><p class="lede">Opening this look…</p>${footerHtml()}</section>`;
+  }
+  if (!page.look) {
+    return `<section class="vote">
+      <h2>This link isn't available</h2>
+      <p class="lede">${page.demo ? escapeHtml(DEMO_SHARE_LABEL) : "The owner may have stopped sharing it."}</p>
+      ${footerHtml()}
+    </section>`;
+  }
+  const src = publicImageSrc(token, page.look.image);
+  const mine = page.choice;
+  const button = (choice, label) => `<button type="button" class="vote-btn ${mine === choice ? "on" : ""}" data-action="public-vote" data-token="${escapeHtml(token)}" data-choice="${choice}" data-reaction="${choice}"><b>${label}</b></button>`;
+  return `<section class="vote">
+    <p class="hint">WingsCrew Looks</p>
+    ${src ? `<img alt="${escapeHtml(page.look.name)}" src="${src}">` : ""}
+    <p class="tag ${escapeHtml(page.look.occasion)}">${escapeHtml(occasionLabel(page.look.occasion))}</p>
+    <h2>Fit or Miss?</h2>
+    <p class="lede">${escapeHtml(page.look.name)}</p>
+    <p class="hint">Preview, not a fitting.</p>
+    <div class="vote-buttons pair">
+      ${button("fit", "Fit")}
+      ${button("miss", "Miss")}
+    </div>
+    <p class="hint">${mine ? `You voted ${mine === "fit" ? "Fit" : "Miss"}. One vote on this phone.` : "One vote on this phone."}</p>
+    ${page.demo ? `<p class="hint demo-share">${escapeHtml(DEMO_SHARE_LABEL)}</p>` : ""}
+    ${footerHtml()}
+  </section>`;
+}
+
+function publicImageSrc(token, image) {
+  if (!image) return "";
+  if (typeof image === "string") return image;
+  return mediaUrl(`public:${token}`, image);
+}
+
+async function loadPublicVote(token) {
+  const seq = ++publicVoteSeq;
+  const demo = providers.shareLinks.demo();
+  try {
+    const look = await providers.shareLinks.get(token);
+    if (seq !== publicVoteSeq) return;
+    state.publicVote = {
+      token,
+      loading: false,
+      look,
+      choice: providers.shareLinks.deviceChoice(token),
+      demo,
+    };
+  } catch {
+    if (seq !== publicVoteSeq) return;
+    state.publicVote = { token, loading: false, look: null, choice: "", demo };
+  }
+  if (parseRoute().path === "v" && parseRoute().id === token) render();
+}
+
+async function castPublicVote(token, choice) {
+  const result = await providers.shareLinks.vote(token, choice, providers.shareLinks.deviceId());
+  if (!result?.ok) {
+    showToast(result?.error || "Could not save that vote.");
+    return;
+  }
+  state.publicVote = {
+    ...(state.publicVote || { token, look: null, demo: providers.shareLinks.demo() }),
+    token,
+    loading: false,
+    choice: result.choice,
+  };
+  render();
+  if (result.duplicate) showToast("You already voted.");
 }
 
 function sharedHtml(token) {
@@ -2223,7 +2418,7 @@ function openAbout() {
     <h2>About</h2>
     <p class="lede">WingsCrew Looks is a way to try an outfit on you, save it, and decide with a friend.</p>
     <div class="sheet-note">
-      <p>Photos in this prototype stay in this browser, on this device. They are not uploaded.</p>
+      <p>Photos in this prototype stay in this browser. A demo share link never leaves this phone. A live share link uploads that one look image.</p>
       <p style="margin-top:8px">Every dressed image is marked AI preview. It is not a real fitting.</p>
       <p style="margin-top:8px">${isTeen(state.profile) ? "Teen mode is on. Sharing is invite-only. There is no public profile and no search. Phone-contact matching comes with the native app." : "Ages 13 to 17 use Teen mode. Under 13 is not stored."}</p>
       <p style="margin-top:8px">Active previews: ${escapeHtml(names)}.</p>

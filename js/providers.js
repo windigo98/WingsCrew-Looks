@@ -2,10 +2,14 @@
  * WingsCrew Looks provider seam.
  *
  * The screens call `providers.avatar`, `providers.tryOn`, `providers.makeup`,
- * `providers.background`, `providers.circle`, and `providers.productSearch`.
+ * `providers.background`, `providers.circle`, `providers.productSearch`,
+ * and `providers.shareLinks`.
  * Swap any of them for a hosted model later without rewriting the pages.
  * This prototype ships local implementations only: no API keys, and photos
- * never leave the device.
+ * stay on the device. A live share link is the exception: when
+ * `window.WCL_SUPABASE_URL` and `window.WCL_SUPABASE_ANON_KEY` are set,
+ * `providers.shareLinks.publish` uploads that one look image. Until then
+ * the link is a demo that only opens on this phone.
  *
  * Product search returns similar store items for "Upgrade this piece".
  * `providers.productSearch.search({ query, type, color, priceMax })` uses
@@ -13,6 +17,8 @@
  * that backend. Assign `providers.productSearch = remoteProductSearch` to
  * force the remote stub. `providers.affiliate.wrap(url)` runs on every
  * outbound store link (passthrough for now).
+ * `providers.shareLinks.publish(look)` returns `{ token, url }`. Visitors
+ * call `get` and `vote`. The owner calls `counts` and `revoke`.
  *
  * Suggested later replacements (not wired up):
  * - avatar: a Gemini image edit that proposes extra poses from the front photo
@@ -27,6 +33,7 @@ import { downscaleImage } from "./images.js";
 import { buildStamps, MAKEUP_PRESETS } from "./makeup.js?v=6";
 import { hitTest, paint, paintToBlob } from "./paint.js?v=8";
 import { runProductSearch, usesExampleCatalog } from "./product-search.js?v=8";
+import { createLocalShareLinks, createSupabaseShareLinks, supabaseShareConfig } from "./share-links.js?v=1";
 import { safeHttpUrl } from "./util.js";
 import {
   acceptInvite,
@@ -266,6 +273,52 @@ export const productSearch = {
   },
 };
 
+function shareLinkClient() {
+  const config = supabaseShareConfig();
+  if (config) return createSupabaseShareLinks(config);
+  return createLocalShareLinks();
+}
+
+/** Demo on this phone, or Supabase when both public settings are present. */
+export const shareLinks = {
+  get id() {
+    return supabaseShareConfig() ? "supabase" : "demo";
+  },
+  get label() {
+    return this.id === "supabase" ? "Live share links" : "Demo share links";
+  },
+  demo() {
+    return this.id === "demo";
+  },
+  publish(look) {
+    return shareLinkClient().publish(look);
+  },
+  get(token) {
+    return shareLinkClient().get(token);
+  },
+  vote(token, choice, deviceId) {
+    return shareLinkClient().vote(token, choice, deviceId);
+  },
+  counts(token) {
+    return shareLinkClient().counts(token);
+  },
+  revoke(token) {
+    return shareLinkClient().revoke(token);
+  },
+  owned() {
+    return shareLinkClient().owned();
+  },
+  deviceId() {
+    return shareLinkClient().deviceId();
+  },
+  deviceChoice(token) {
+    return shareLinkClient().deviceChoice(token);
+  },
+  url(token) {
+    return shareLinkClient().url(token);
+  },
+};
+
 export const providers = {
   avatar: localAvatarProvider,
   tryOn: localTryOnProvider,
@@ -274,4 +327,5 @@ export const providers = {
   circle: localCircleProvider,
   productSearch,
   affiliate,
+  shareLinks,
 };

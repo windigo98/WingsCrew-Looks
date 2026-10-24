@@ -405,6 +405,7 @@ input[type="range"] { width: 100%; accent-color: var(--rose); }
 .vote img { width: 100%; border-radius: 28px; box-shadow: var(--shadow); }
 .vote h2 { font-size: 48px; line-height: 0.95; }
 .vote-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.vote-buttons.pair { grid-template-columns: 1fr 1fr; }
 .vote-btn {
   min-height: 88px;
   border-radius: 20px;
@@ -423,6 +424,10 @@ input[type="range"] { width: 100%; accent-color: var(--rose); }
 .vote-btn[data-reaction="heart"].on { background: var(--rose); color: white; border-color: var(--rose); }
 .vote-btn[data-reaction="meh"].on { background: #e7c98a; color: var(--ink); border-color: #e7c98a; }
 .vote-btn[data-reaction="no"].on { background: var(--ink); color: white; border-color: var(--ink); }
+.vote-btn[data-reaction="fit"].on { background: var(--rose); color: white; border-color: var(--rose); }
+.vote-btn[data-reaction="miss"].on { background: var(--ink); color: white; border-color: var(--ink); }
+.demo-share { margin: 0; }
+body[data-route="v"] main { padding-bottom: 28px; }
 
 .onboard {
   min-height: 100dvh;
