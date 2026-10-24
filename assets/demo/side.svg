@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 800" width="400" height="800">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6e7dc"/>
+      <stop offset="1" stop-color="#ead4c6"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7d2ba"/>
+      <stop offset="1" stop-color="#e8b494"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="800" fill="url(#bg)"/>
+  <ellipse cx="214" cy="752" rx="64" ry="12" fill="#d7b5a4" opacity="0.45"/>
+  <path d="M196 520 C188 630 196 710 206 736" fill="none" stroke="#cfc4b8" stroke-width="28" stroke-linecap="round"/>
+  <path d="M214 530 C232 630 224 708 218 732" fill="none" stroke="#c4b8ad" stroke-width="22" stroke-linecap="round"/>
+  <ellipse cx="208" cy="738" rx="22" ry="8" fill="#f7f4ef"/>
+  <path d="M176 330 C168 300 210 286 230 310 L248 500 C220 530 176 520 160 490 Z" fill="#ddd4cc"/>
+  <path d="M188 340 C230 390 250 450 236 510" fill="none" stroke="url(#skin)" stroke-width="20" stroke-linecap="round"/>
+  <path d="M158 248 C132 310 126 370 150 440 C172 408 180 340 174 286 C168 262 162 246 158 248Z" fill="#3a2e2a"/>
+  <path d="M150 238 C148 168 190 136 230 158 C268 178 270 238 250 278 C230 252 200 246 176 268 C150 278 140 258 150 238Z" fill="#3a2e2a"/>
+  <path d="M186 292 C176 324 168 350 162 382 L220 372 C228 338 234 312 240 290 Z" fill="url(#skin)"/>
+  <path d="M248 238 C270 244 276 256 268 264 C258 254 250 248 242 246" fill="#e8b494"/>
+  <ellipse cx="214" cy="246" rx="46" ry="64" fill="url(#skin)"/>
+  <path d="M196 206 C214 174 252 184 262 220 C248 200 220 196 196 212Z" fill="#3a2e2a"/>
+  <path d="M186 220 Q204 210 220 220" fill="none" stroke="#3a2c28" stroke-width="3.2" stroke-linecap="round"/>
+  <ellipse cx="204" cy="234" rx="8" ry="7" fill="#fffdfb"/>
+  <ellipse cx="206" cy="235" rx="4" ry="4.5" fill="#2a2320"/>
+  <circle cx="207.5" cy="233.5" r="1.4" fill="#fff"/>
+  <path d="M236 256 Q258 264 252 276" fill="none" stroke="#c48b78" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M228 286 Q246 296 258 284 Q246 292 228 286Z" fill="#c45b6a"/>
+  <path d="M168 256 Q156 248 150 260" fill="none" stroke="#e8b494" stroke-width="7" stroke-linecap="round"/>
+</svg>
