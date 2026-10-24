@@ -36,11 +36,11 @@ node --test tests/wishlist.test.js
 | Dressing a look | Real drag, pinch, rotate, flip, delete, and layer order. Sample art plus your images. | AI try-on (FASHN, Google Virtual Try-On, or similar) that redraws the garment on the body |
 | Makeup | Real preset overlays: Natural, Glam, Bold lip, Smoky eye. Drag them onto the face. | A makeup model (Perfect Corp, a guided image edit, or MediaPipe landmarks) |
 | Background lift | Real, on-device, for a plain light backdrop. It will damage white clothing, so it is off unless you turn it on. | A proper matte model such as `@imgly/background-removal` |
-| Looks, closet, wishlist, votes | Real, on this device | Shared invites, live votes, live registry |
+| Looks, closet, wishlist, votes | Real, on this device. **Share link** publishes a Fit or Miss page. Until Supabase is connected it is a demo that only opens on this phone. | Live links on other phones. See [docs/supabase-setup.md](docs/supabase-setup.md) |
 | "AI preview" badge | Burned into every exported image, and shown on the studio | Keep it. The AI label does not come off. |
 | Age and Teen mode | Birthday on first run. Under 13 is refused and not stored. Ages 13–17 get Teen mode: invite-only friends, private looks, video export off until they turn it on, no adult or sponsored-adult packs, optional parent link that shows the friends list only. | Accounts, delivery of invites to another phone, and phone-contact matching (that last one comes with the native app; the web uses invite links) |
 
-Nothing here calls a paid API or needs a secret.
+Nothing here calls a paid API. The only optional key is the public Supabase anon key, and the app runs without it.
 
 ## Provider interface
 
@@ -51,6 +51,7 @@ Screens talk to four providers in [`js/providers.js`](js/providers.js). Swap the
 - `providers.makeup.apply({ presetId, slot })` → overlay instructions (`mode: "overlay"`). A hosted makeup provider can return `{ mode: "generate", blob }` instead.
 - `providers.background.remove(blob, { strength })` → a PNG with a light backdrop lifted, or the original if it can't see a plain background.
 - `providers.circle` → Teen mode friend circle. `createInvite`, `acceptInvite`, `approveFriend`, `blockFriend`, `reportFriend`, `createParentLink`, and `parentSnapshot`. `parentSnapshot` returns names and status only.
+- `providers.shareLinks` → `publish(look)`, `get(token)`, `vote(token, choice, deviceId)`, `counts(token)`, and `revoke(token)`. A demo stores the link on this phone. Set `window.WCL_SUPABASE_URL` and `window.WCL_SUPABASE_ANON_KEY` to use Supabase. Steps are in [docs/supabase-setup.md](docs/supabase-setup.md). Teen mode does not get a public link.
 
 Local ids: `local-photo`, `local-composite`, `local-preset-overlay`, `local-light-matte`, `local-invite-link`.
 
@@ -68,11 +69,14 @@ The wishlist record in [`js/wishlist-model.js`](js/wishlist-model.js) is shaped 
 
 ## Next phase: backend
 
-In-app invites, real-time votes, and a live shared registry need a backend. The product plan points at [Supabase](https://supabase.com) (auth, private file storage, and Realtime for claim / purchased badges). Until that exists:
+In-app friend invites and a live shared registry still need more backend work. Share links are ready behind `providers.shareLinks`. Until the Supabase URL and anon key are filled in ([setup steps](docs/supabase-setup.md)):
 
-- votes are stored on this device only
+- a share link only opens on the phone that created it
+- heart, meh, and no votes stay on this device
 - the wishlist cannot be shared
-- photos never leave the phone
+- photos stay on the phone
+
+A live link uploads that one look image and lets each phone vote Fit or Miss once. The owner sees the counts and can stop the link. Ages 13 to 17 still have no public link.
 
 ## GitHub Pages
 
