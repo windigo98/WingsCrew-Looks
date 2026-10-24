@@ -3,8 +3,8 @@ import { db } from "./db.js";
 import { downscaleImage, loadImage } from "./images.js";
 import { buildStamps, hasFaceAnchor } from "./makeup.js?v=6";
 import { PLACEMENT_VERSION, applyWear, needsReseat, normalizeLayers, scaleCap } from "./placement.js?v=8";
-import { categoryForSlot, formatPrice, pieceQuery } from "./product-search.js?v=7";
-import { providers } from "./providers.js?v=8";
+import { categoryForSlot, formatPrice, pieceQuery, showsEtsyNotice } from "./product-search.js?v=8";
+import { providers } from "./providers.js?v=9";
 import { ageBand, ageOn, emptyCircle, isTeen, profileFromBirthdate } from "./safety.js";
 import { clamp, escapeHtml, mapsSearchUrl, safeHttpUrl, uid } from "./util.js";
 import { buildWishlistRecord, firstChoice, wishlistToForm } from "./wishlist-model.js";
@@ -92,8 +92,19 @@ function icon(name) {
   return `<svg ${common}>${paths[name]}</svg>`;
 }
 
+const CONTACT_EMAIL = "wingscrew-looks@wingscrew.com";
+const FTC_NOTICE = "We may earn a commission from links on this page.";
+const ETSY_NOTICE = "The term 'Etsy' is a trademark of Etsy, Inc. This Application uses Etsy's API, but is not endorsed or certified by Etsy.";
+const STORE_REL = "sponsored noopener noreferrer";
+
 function footerHtml() {
   return `<footer class="legal">© 2026 WingsCrew. All rights reserved.</footer>`;
+}
+
+function storeAnchor(url, label, className) {
+  const href = providers.affiliate.wrap(url);
+  if (!href) return "";
+  return `<a class="${className}" href="${escapeHtml(href)}" target="_blank" rel="${STORE_REL}">${escapeHtml(label)}</a>`;
 }
 
 function parseRoute() {
@@ -759,7 +770,8 @@ function wishCard(record) {
     ${mapsUrl ? `<a class="btn small" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener noreferrer">Open in Maps</a>` : ""}
     ${record.jewelry ? `<p class="hint">${escapeHtml([record.jewelry.metal, record.jewelry.finishStone, record.jewelry.sizeOrLength].filter(Boolean).join(" · "))}</p>` : ""}
     <div class="card-actions">
-      ${online?.url && providers.affiliate.wrap(online.url) ? `<a class="btn ghost small" href="${escapeHtml(providers.affiliate.wrap(online.url))}" target="_blank" rel="noopener noreferrer">View item</a>` : ""}
+      ${online?.url ? storeAnchor(online.url, "View item", "btn ghost small") : ""}
+      ${online?.url && providers.affiliate.wrap(online.url) ? `<p class="disclose wish-disclose">${FTC_NOTICE}</p>` : ""}
       <button type="button" class="btn ghost small" data-action="edit-wish" data-id="${record.id}">Edit</button>
       <button type="button" class="btn ghost small" data-action="delete-wish" data-id="${record.id}">Delete</button>
     </div>
@@ -1402,13 +1414,12 @@ async function openUpgrade(layerId) {
   items = items.filter((item) => !isTeen(state.profile) || (!item.adultSponsored && item.audience !== "18+" && item.sponsorCategory !== "adult"));
   upgradeOffers = new Map(items.map((item) => [item.id, item]));
   const cards = items.map((item) => {
-    const href = providers.affiliate.wrap(item.url);
     return `<article class="upgrade-card">
       ${item.image ? `<img alt="" src="${escapeHtml(item.image)}">` : `<div class="ph"></div>`}
       <strong>${escapeHtml(item.title)}</strong>
       <p class="upgrade-price">${escapeHtml(formatPrice(item.price, item.currency))}</p>
       <p class="hint">${escapeHtml(item.store)}</p>
-      ${href ? `<a class="btn small" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">View at store</a>` : ""}
+      ${storeAnchor(item.url, "View at store", "btn small")}
       <button type="button" class="btn ghost small" data-action="upgrade-wish" data-id="${escapeHtml(item.id)}" data-layer="${escapeHtml(layer.id)}">Add to wishlist</button>
     </article>`;
   }).join("");
@@ -1417,7 +1428,8 @@ async function openUpgrade(layerId) {
     <p class="hint">${escapeHtml(layer.name || request.slotLabel)} · ${escapeHtml(request.slotLabel)}</p>
     ${searchShowsExamples() ? `<p class="example-label">Example items</p>` : ""}
     ${items.length ? `<div class="scroller upgrade-scroller" aria-label="Similar pieces">${cards}</div>` : `<p class="hint">No similar pieces yet.</p>`}
-    <p class="disclose">We may earn a commission</p>`);
+    <p class="disclose">${FTC_NOTICE}</p>
+    <p class="disclose etsy-notice"${showsEtsyNotice(items) ? "" : " hidden"}>${ETSY_NOTICE}</p>`);
 }
 
 function openUpgradeWish(productId, layerId) {
@@ -2219,7 +2231,7 @@ function openAbout() {
     <div class="stack" style="margin-top:14px">
       <button type="button" class="btn ghost full" data-action="delete-photos">Delete my photos</button>
       <button type="button" class="btn rose full" data-action="delete-all">Delete everything on this device</button>
-      <a class="btn ghost full" style="text-align:center;text-decoration:none" href="mailto:dovewingsbusiness@gmail.com">dovewingsbusiness@gmail.com</a>
+      <a class="btn ghost full" style="text-align:center;text-decoration:none" href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>
     </div>
     ${footerHtml()}`);
 }
