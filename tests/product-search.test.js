@@ -10,6 +10,7 @@ import {
   pieceQuery,
   rankProducts,
   runProductSearch,
+  showsEtsyNotice,
 } from "../js/product-search.js";
 
 test("builds a search query from type, color, and style words", () => {
@@ -110,6 +111,35 @@ test("remote search calls the configured URL and still ranks", async () => {
   assert.equal(parsed.searchParams.get("teen"), null);
   assert.deepEqual(items.map((item) => item.id), ["straw", "wool"]);
   assert.equal(items[0].affiliate, true);
+  assert.equal(items[0].source, "");
+});
+
+test("keeps an etsy source and shows the trademark notice only then", async () => {
+  const demo = await runProductSearch({ query: "hat straw", type: "hat" });
+  assert.ok(demo.length > 0);
+  assert.equal(demo.every((item) => item.source === ""), true);
+  assert.equal(showsEtsyNotice(demo), false);
+  assert.equal(showsEtsyNotice([]), false);
+
+  const items = await runProductSearch(
+    { query: "hat straw", type: "hat" },
+    {
+      url: "https://search.example/etsy",
+      fetchImpl: async () => ({
+        ok: true,
+        json: async () => ({
+          items: [
+            { id: "shop", title: "Straw hat", price: 22, url: "https://shop.example/straw", store: "Shop", type: "hat", tags: ["straw", "hat"] },
+            { id: "etsy", title: "Straw sun hat", price: 28, url: "https://www.etsy.com/listing/1", store: "Etsy", type: "hat", source: "Etsy", tags: ["straw", "hat"] },
+          ],
+        }),
+      }),
+    },
+  );
+  assert.equal(items.find((item) => item.id === "etsy").source, "etsy");
+  assert.equal(items.find((item) => item.id === "shop").source, "");
+  assert.equal(showsEtsyNotice(items), true);
+  assert.equal(showsEtsyNotice([{ source: "shop" }, { source: "" }]), false);
 });
 
 test("remote provider returns nothing until a URL is configured", async () => {

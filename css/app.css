@@ -290,6 +290,8 @@ main {
   text-decoration: none;
 }
 .disclose { color: var(--muted); font-size: 12px; margin: 12px 0 4px; }
+.wish-disclose { flex: 1 1 100%; margin: 2px 0 0; line-height: 1.35; }
+.etsy-notice[hidden] { display: none; }
 
 .studio { display: flex; flex-direction: column; gap: 14px; padding-bottom: 84px; }
 .studio-actions {

@@ -84,4 +84,4 @@ If Pages is not turned on yet: GitHub → **windigo98/WingsCrew-Looks** → **Se
 
 Copyright (c) 2026 WingsCrew (windigo98). All rights reserved.
 
-The source is view-only. See [LICENSE](LICENSE). No permission is granted to copy, modify, distribute, or reuse the code, art, names, or content without written permission. Contact [dovewingsbusiness@gmail.com](mailto:dovewingsbusiness@gmail.com).
+The source is view-only. See [LICENSE](LICENSE). No permission is granted to copy, modify, distribute, or reuse the code, art, names, or content without written permission. Contact [wingscrew-looks@wingscrew.com](mailto:wingscrew-looks@wingscrew.com).

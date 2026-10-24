@@ -2,7 +2,9 @@
  * Similar-piece search for "Upgrade this piece".
  *
  * `runProductSearch({ query, type, color, priceMax })` returns
- * `{ id, title, price, currency, image, url, store, affiliate }`.
+ * `{ id, title, price, currency, image, url, store, affiliate, source }`.
+ * `source` is kept from the catalog (for example "etsy") so a result notice
+ * can appear only when that source is actually on screen.
  * With no backend URL this is labeled example data. Set `window.WCL_SEARCH_URL`
  * (or pass `url`) and the same call hits that server. Ranking is closeness, then price.
  * Teen mode drops adult sponsored items.
@@ -206,6 +208,10 @@ export function closenessScore(item, request) {
   return score;
 }
 
+export function showsEtsyNotice(items) {
+  return (items || []).some((item) => String(item?.source || "").toLowerCase() === "etsy");
+}
+
 function publicItem(item) {
   return {
     id: item.id,
@@ -218,6 +224,7 @@ function publicItem(item) {
     affiliate: Boolean(item.affiliate),
     color: item.color || "",
     type: item.type || "",
+    source: item.source || "",
   };
 }
 
@@ -269,6 +276,7 @@ function normalizeItem(raw) {
     affiliate: Boolean(raw.affiliate),
     type: String(raw.type || "").toLowerCase(),
     color: String(raw.color || "").toLowerCase(),
+    source: String(raw.source || "").trim().toLowerCase(),
     tags,
   };
 }
@@ -308,7 +316,7 @@ export async function fetchRemoteProducts(request, { url, fetchImpl }) {
 
 /**
  * Demo catalog, unless `url` / `window.WCL_SEARCH_URL` is set or `source` is "remote".
- * @returns {Promise<Array<{id:string,title:string,price:number,currency:string,image:string,url:string,store:string,affiliate:boolean}>>}
+ * @returns {Promise<Array<{id:string,title:string,price:number,currency:string,image:string,url:string,store:string,affiliate:boolean,source:string}>>}
  */
 export async function runProductSearch(request = {}, options = {}) {
   const url = configuredSearchUrl(options.url);
