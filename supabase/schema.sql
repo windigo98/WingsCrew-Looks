@@ -88,12 +88,45 @@ as $$
   );
 $$;
 
+-- Marks a look revoked when the owner secret matches. PostgREST cannot PATCH this
+-- itself: returning the updated row asks for columns anon cannot read, and the
+-- public select policy hides a row as soon as revoked is true.
+create or replace function public.revoke_look(look_token text, secret text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  updated int;
+begin
+  if coalesce(secret, '') = '' or coalesce(look_token, '') = '' then
+    return false;
+  end if;
+  if exists (
+    select 1 from public.shared_looks
+    where token = look_token and owner_secret = secret and revoked = true
+  ) then
+    return true;
+  end if;
+  update public.shared_looks
+    set revoked = true
+    where token = look_token
+      and owner_secret = secret
+      and revoked = false;
+  get diagnostics updated = row_count;
+  return updated > 0;
+end;
+$$;
+
 revoke all on function public.request_header(text) from public;
 revoke all on function public.look_is_live(text) from public;
 revoke all on function public.owns_look(text, text) from public;
+revoke all on function public.revoke_look(text, text) from public;
 grant execute on function public.request_header(text) to anon;
 grant execute on function public.look_is_live(text) to anon;
 grant execute on function public.owns_look(text, text) to anon;
+grant execute on function public.revoke_look(text, text) to anon;
 
 drop policy if exists "anon inserts a shared look" on public.shared_looks;
 drop policy if exists "anon reads one live look by token" on public.shared_looks;

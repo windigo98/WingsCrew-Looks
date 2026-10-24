@@ -142,8 +142,10 @@ test("supabase client uses the anon key and dedupes a second vote", async () => 
     if (url.includes("/rest/v1/votes?") && (init.method || "GET") === "GET") {
       return { ok: true, status: 200, json: async () => votes.map((item) => ({ choice: item.choice })) };
     }
-    if (url.includes("/rest/v1/shared_looks?") && init.method === "PATCH") {
-      return { ok: true, status: 200, json: async () => [{ token: publishedToken, revoked: true }] };
+    if (url.endsWith("/rest/v1/rpc/revoke_look") && init.method === "POST") {
+      const body = JSON.parse(bodyText);
+      const allowed = body.look_token === publishedToken && body.secret && body.secret.length > 10;
+      return { ok: true, status: 200, json: async () => allowed };
     }
     if (init.method === "DELETE") return { ok: true, status: 200, json: async () => ({}) };
     return { ok: false, status: 500, json: async () => ({}) };
@@ -180,7 +182,8 @@ test("supabase client uses the anon key and dedupes a second vote", async () => 
   const insert = calls.find((call) => call.url.endsWith("/rest/v1/shared_looks") && call.method === "POST");
   const read = calls.find((call) => call.url.includes("/rest/v1/shared_looks?") && call.method === "GET");
   const tally = calls.find((call) => call.url.includes("/rest/v1/votes?") && call.method === "GET");
-  const patch = calls.find((call) => call.method === "PATCH");
+  const patch = calls.find((call) => call.url.endsWith("/rest/v1/rpc/revoke_look"));
+  const removed = calls.find((call) => call.method === "DELETE" && call.url.includes("/storage/v1/object/looks/"));
   assert.equal(insert.headers.apikey, "anon-public-key");
   assert.equal(insert.headers.Authorization, "Bearer anon-public-key");
   assert.equal(insert.headers.Prefer, "return=minimal");
@@ -189,8 +192,10 @@ test("supabase client uses the anon key and dedupes a second vote", async () => 
   assert.equal(read.headers["x-owner-secret"], undefined);
   assert.equal(read.url.includes("owner_secret"), false);
   assert.equal(tally.headers["x-owner-secret"], JSON.parse(insert.bodyText).owner_secret);
-  assert.equal(patch.headers["x-owner-secret"], JSON.parse(insert.bodyText).owner_secret);
-  assert.equal(JSON.parse(patch.bodyText).revoked, true);
+  assert.equal(JSON.parse(patch.bodyText).look_token, published.token);
+  assert.equal(JSON.parse(patch.bodyText).secret, JSON.parse(insert.bodyText).owner_secret);
+  assert.equal(removed.headers["x-owner-secret"], JSON.parse(insert.bodyText).owner_secret);
+  assert.equal(calls.some((call) => call.method === "PATCH"), false);
   assert.equal(calls.some((call) => JSON.stringify(call.headers).includes("service_role")), false);
 });
 

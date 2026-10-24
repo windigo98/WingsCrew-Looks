@@ -18,14 +18,7 @@ Supabase has a free plan. You do not put a password in the app. The only key tha
 10. Open the gear icon, **Project Settings**, then **API**.
 11. Copy the **Project URL**.
 12. Copy the **anon public** key. This key is safe to put in the app. Do **not** copy the **service_role** key. Leave that key on the Supabase page. It is a secret.
-13. In this project, open `index.html`. Find these two lines:
-
-    ```html
-    window.WCL_SUPABASE_URL = "";
-    window.WCL_SUPABASE_ANON_KEY = "";
-    ```
-
-    Paste the Project URL between the first pair of quotes. Paste the anon public key between the second pair of quotes. Save the file.
+13. In this project, open `index.html`. Find `window.WCL_SUPABASE_URL` and `window.WCL_SUPABASE_ANON_KEY`. The WingsCrew project values are already filled in. If this is your own Supabase project, replace them with your Project URL and anon public key. Save the file. If **Stop sharing** fails on a project created before that button worked, open **SQL Editor**, paste `supabase/migrations/002_revoke_look.sql`, and click **Run**.
 14. Put that `index.html` on the site (for GitHub Pages, commit it on the `main` branch and wait a minute). Open a saved look, tap **Share link**, and send the link. Another phone should open it and vote once.
 
 The link looks like `https://windigo98.github.io/WingsCrew-Looks/#/v/` followed by a long id.
