@@ -427,19 +427,13 @@ export function createSupabaseShareLinks(options = {}) {
     const id = String(token || "");
     const entry = book()[id];
     if (!entry?.ownerSecret) return { ok: false, error: "Only the owner can stop sharing." };
-    const response = await fetchImpl(`${endpoint}/rest/v1/shared_looks?token=eq.${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      headers: headers({
-        "Content-Type": "application/json",
-        Prefer: "return=representation",
-        "x-owner-secret": entry.ownerSecret,
-      }),
-      body: JSON.stringify({ revoked: true }),
+    const response = await fetchImpl(`${endpoint}/rest/v1/rpc/revoke_look`, {
+      method: "POST",
+      headers: headers({ "Content-Type": "application/json", Accept: "application/json" }),
+      body: JSON.stringify({ look_token: id, secret: entry.ownerSecret }),
     });
-    const rows = response?.ok ? await response.json().catch(() => []) : [];
-    if (!response?.ok || !Array.isArray(rows) || !rows.length) {
-      return { ok: false, error: "Only the owner can stop sharing." };
-    }
+    const revoked = response?.ok ? await response.json().catch(() => false) : false;
+    if (revoked !== true) return { ok: false, error: "Only the owner can stop sharing." };
     await fetchImpl(`${endpoint}/storage/v1/object/looks/${id}.jpg`, {
       method: "DELETE",
       headers: headers({ "x-owner-secret": entry.ownerSecret }),

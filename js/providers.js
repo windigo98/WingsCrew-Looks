@@ -33,7 +33,7 @@ import { downscaleImage } from "./images.js";
 import { buildStamps, MAKEUP_PRESETS } from "./makeup.js?v=6";
 import { hitTest, paint, paintToBlob } from "./paint.js?v=8";
 import { runProductSearch, usesExampleCatalog } from "./product-search.js?v=8";
-import { createLocalShareLinks, createSupabaseShareLinks, supabaseShareConfig } from "./share-links.js?v=1";
+import { createLocalShareLinks, createSupabaseShareLinks, supabaseShareConfig } from "./share-links.js?v=2";
 import { safeHttpUrl } from "./util.js";
 import {
   acceptInvite,
