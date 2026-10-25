@@ -1,6 +1,6 @@
 # WingsCrew Looks
 
-WingsCrew Looks is a fashion app by WingsCrew. You add photos of yourself, layer clothes, accessories, and jewelry on them, try a makeup preset, and save the result as a look. Pieces you own go in My Closet. Pieces you want go on a private wishlist with size, color, and where to buy them. When you can't decide, you export the image and cast a **Fit or Miss?** vote (heart, meh, or no).
+WingsCrew Looks is a fashion app by WingsCrew. You add photos of yourself, layer clothes, accessories, and jewelry on them, try a makeup preset or a hairstyle, and save the result as a look. Pieces you own go in My Closet. Pieces you want go on a private wishlist with size, color, and where to buy them. When you can't decide, you export the image and cast a **Fit or Miss?** vote (heart, meh, or no).
 
 This repository is the first working prototype: a mobile-first static site. It is meant to run on GitHub Pages from the `main` branch, at the repository root.
 
@@ -35,9 +35,10 @@ node --test tests/wishlist.test.js
 | Photos | Real camera or upload. Stored only on the device. One tap deletes them, with undo. | Accounts, encrypted storage, deletion from AI providers |
 | Dressing a look | Real drag, pinch, rotate, flip, delete, and layer order. Sample art plus your images. | AI try-on (FASHN, Google Virtual Try-On, or similar) that redraws the garment on the body |
 | Makeup | Real preset overlays: Natural, Glam, Bold lip, Smoky eye. Drag them onto the face. | A makeup model (Perfect Corp, a guided image edit, or MediaPipe landmarks) |
+| Hair | Eight drawn hairstyles, each in six colors. Drag, pinch, and twist on your photo. Saved looks use the same share link and Fit or Miss vote. Nothing is uploaded until you share. | More styles |
 | Background lift | Real, on-device, for a plain light backdrop. It will damage white clothing, so it is off unless you turn it on. | A proper matte model such as `@imgly/background-removal` |
 | Looks, closet, wishlist, votes | Real, on this device. **Share link** publishes a Fit or Miss page. Until Supabase is connected it is a demo that only opens on this phone. | Live links on other phones. See [docs/supabase-setup.md](docs/supabase-setup.md) |
-| "AI preview" badge | Burned into every exported image, and shown on the studio | Keep it. The AI label does not come off. |
+| "AI preview" badge | Burned into dressed images, and shown on the studio. Hair saves are drawings, so they do not get that badge. | Keep it on dressed images. The AI label does not come off those. |
 | Age and Teen mode | Birthday on first run. Under 13 is refused and not stored. Ages 13–17 get Teen mode: invite-only friends, private looks, video export off until they turn it on, no adult or sponsored-adult packs, optional parent link that shows the friends list only. | Accounts, delivery of invites to another phone, and phone-contact matching (that last one comes with the native app; the web uses invite links) |
 
 Nothing here calls a paid API. The only optional key is the public Supabase anon key, and the app runs without it.
