@@ -57,6 +57,7 @@ test("each hairstyle file is one drawing recolored by CSS variables", async () =
     assert.match(text, /var\(--hair-light\)/);
     assert.match(text, /viewBox="0 0 400 560"/);
     assert.match(text, /a78 96 0 1 0 156 0/);
+    assert.match(text, /clip-rule="evenodd"/);
     const local = text.replaceAll("http://www.w3.org/2000/svg", "");
     assert.doesNotMatch(local, /https?:\/\//);
     assert.equal(text.includes("fill=\"#"), false);

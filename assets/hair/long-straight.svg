@@ -2,7 +2,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 560">
   <defs>
     <clipPath id="face-open">
-      <path fill-rule="evenodd" d="M200 30
+      <path fill-rule="evenodd" clip-rule="evenodd" d="M200 30
 C134 22 78 68 56 126
 C38 174 30 234 32 298
 C34 358 26 430 20 548

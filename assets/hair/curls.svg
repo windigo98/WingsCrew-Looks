@@ -2,7 +2,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 560">
   <defs>
     <clipPath id="face-open">
-      <path fill-rule="evenodd" d="M22 248a178 192 0 1 0 356 0a178 192 0 1 0-356 0 M122 270a78 96 0 1 0 156 0a78 96 0 1 0-156 0"/>
+      <path fill-rule="evenodd" clip-rule="evenodd" d="M22 248a178 192 0 1 0 356 0a178 192 0 1 0-356 0 M122 270a78 96 0 1 0 156 0a78 96 0 1 0-156 0"/>
     </clipPath>
   </defs>
   <g clip-path="url(#face-open)">
