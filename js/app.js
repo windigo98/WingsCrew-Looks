@@ -13,6 +13,7 @@ import {
   FACE_SHAPES,
   HAIR_AUDIENCES,
   HAIR_COLORS,
+  HAIR_FINISHES,
   HAIR_GROUPS,
   HAIR_LIFT_RANGE,
   LOOK_MODELS,
@@ -21,6 +22,7 @@ import {
   flattenHairCanvas,
   hairColorById,
   hairColorLut,
+  hairFinishById,
   hairFrame,
   hairLookSrc,
   hairStyleById,
@@ -28,8 +30,8 @@ import {
   modelAudience,
   recolorHairPixels,
   tintedHairCanvas,
-} from "./hair.js?v=16";
-import { detectFace, hairMask } from "./face-fit.js?v=16";
+} from "./hair.js?v=17";
+import { detectFace, hairMask } from "./face-fit.js?v=17";
 
 const NAV = [
   ["dress", "Dress", icon("dress")],
@@ -1632,6 +1634,11 @@ function openWishSheet(source) {
   });
 }
 
+function hairLabel(style, color) {
+  const finish = hairFinishById(state.hair.finish);
+  return `${style.label} · ${color.label}${finish.id === "solid" ? "" : ` ${finish.label}`}`;
+}
+
 function hairPhoto() {
   if (state.hair.modelId) return null;
   return state.photos.find((photo) => photo.id === state.hair.photoId) || null;
@@ -1693,8 +1700,10 @@ function hairState() {
     rotation: hair.rotation,
     stretchX: hair.stretchX,
     stretchY: hair.stretchY,
-    crown: hair.crown ?? 1,
+    crownTop: hair.crownTop || 0,
+    finish: hairFinishById(hair.finish).id,
     contour: Array.isArray(hair.contour) ? hair.contour : null,
+    faceContour: Array.isArray(hair.faceContour) ? hair.faceContour : null,
     lift: hair.lift || 0,
     pushBack: Boolean(hair.pushBack),
     fitFor: hair.fitFor || "",
@@ -1749,7 +1758,10 @@ function hairHtml() {
     <div class="scroller hair-colors" aria-label="Hair colors">
       ${HAIR_COLORS.map((item) => `<button type="button" class="hair-swatch" data-action="hair-color" data-id="${item.id}" aria-pressed="${item.id === color.id}"><i style="background:${item.hex}"></i>${escapeHtml(item.label)}</button>`).join("")}
     </div>
-    <p class="hair-name" id="hair-name">${escapeHtml(style.label)} · ${escapeHtml(color.label)}</p>
+    <div class="scroller hair-finishes" role="group" aria-label="Color style">
+      ${HAIR_FINISHES.map((item) => `<button type="button" class="chip ${item.id === hairFinishById(state.hair.finish).id ? "active" : ""}" data-action="hair-finish" data-id="${item.id}" aria-pressed="${item.id === hairFinishById(state.hair.finish).id}">${escapeHtml(item.label)}</button>`).join("")}
+    </div>
+    <p class="hair-name" id="hair-name">${escapeHtml(hairLabel(style, color))}</p>
     <div id="hair-stage" class="hair-stage" aria-label="Hair preview">
       ${source ? `<img class="hair-photo" id="hair-photo" alt="" src="${escapeHtml(source.src)}">` : `<p class="hair-empty">Add a photo, or pick a model.</p>`}
       ${isLook ? "" : `<div id="hair-overlay" class="hair-overlay"></div>`}
@@ -1891,7 +1903,7 @@ function mountHairArt() {
   const style = hairStyleById(state.hair.styleId);
   const color = hairColorById(state.hair.colorId);
   const name = document.getElementById("hair-name");
-  if (name) name.textContent = `${style.label} · ${color.label}`;
+  if (name) name.textContent = hairLabel(style, color);
   for (const selector of [".hair-styles .chip.active", ".hair-models .hair-model.active"]) {
     const chip = document.querySelector(selector);
     const row = chip?.closest(".scroller");
@@ -1919,7 +1931,9 @@ function overlayOptions() {
   return {
     pushBack: Boolean(state.hair.pushBack),
     contour: Array.isArray(state.hair.contour) ? state.hair.contour : null,
-    crown: state.hair.crown ?? 1,
+    faceContour: Array.isArray(state.hair.faceContour) ? state.hair.faceContour : null,
+    crownTop: state.hair.crownTop || 0,
+    finish: hairFinishById(state.hair.finish).id,
   };
 }
 
@@ -1928,8 +1942,8 @@ const lookCanvases = new Map();
  * Recolor a model portrait on the phone: find the hair with the bundled
  * segmenter (once per portrait), then repaint it in the picked color.
  */
-async function recoloredLook(src, color) {
-  const key = `${src}|${color.id}`;
+async function recoloredLook(src, color, finish = hairFinishById(state.hair.finish).id) {
+  const key = `${src}|${color.id}|${finish}`;
   if (lookCanvases.has(key)) return lookCanvases.get(key);
   const image = await loadImage(src);
   const mask = await hairMask(image, src);
@@ -1939,7 +1953,7 @@ async function recoloredLook(src, color) {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(image, 0, 0, mask.width, mask.height);
   const pixels = ctx.getImageData(0, 0, mask.width, mask.height);
-  recolorHairPixels(pixels.data, mask.data, hairColorLut(color));
+  recolorHairPixels(pixels.data, mask.data, hairColorLut(color), { width: mask.width, finish, color });
   ctx.putImageData(pixels, 0, 0);
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
   if (!blob) throw new Error("Could not color that hair.");
@@ -1956,7 +1970,7 @@ async function recoloredLook(src, color) {
 function mountLookColor(token, source, color) {
   const img = document.getElementById("hair-photo");
   if (!img) return;
-  const done = lookCanvases.get(`${source.src}|${color.id}`);
+  const done = lookCanvases.get(`${source.src}|${color.id}|${hairFinishById(state.hair.finish).id}`);
   if (done) {
     img.src = done.url;
     return;
@@ -2016,20 +2030,21 @@ async function autoFitHair({ quiet = false, resetLift = false } = {}) {
       stageH: stage.clientHeight,
     }, style);
     const keep = { lift: resetLift ? 0 : state.hair.lift || 0, pushBack: state.hair.pushBack };
-    const prevShape = `${(state.hair.contour || []).join(",")}|${state.hair.crown ?? 1}`;
+    const shapeKey = () => `${(state.hair.contour || []).join(",")}|${(state.hair.faceContour || []).join(",")}|${state.hair.crownTop || 0}`;
+    const prevShape = shapeKey();
     if (placement) {
       state.hair = { ...state.hair, ...placement, ...keep, fitFor: fitKey };
       setHairFitNote("Fitted to your head. It's an approximate preview: drag or use Hairline to fine-tune.", "fit");
     } else {
       const base = defaultHairPlacement();
-      state.hair = { ...state.hair, x: base.x, y: base.y, scale: base.scale, rotation: 0, stretchX: 1, stretchY: 1, crown: 1, contour: null, ...keep, fitFor: fitKey };
+      state.hair = { ...state.hair, x: base.x, y: base.y, scale: base.scale, rotation: 0, stretchX: 1, stretchY: 1, crownTop: 0, yaw: 0, contour: null, faceContour: null, ...keep, fitFor: fitKey };
       setHairFitNote("Couldn't spot a face, so the hair is in the middle. Drag it into place, or try a front-facing photo.", "none");
       if (!quiet) showToast("No face found. Drag the hair into place.");
     }
     syncHairSliders();
     applyHairTransform();
     // The hair is bent to the head outline, which needs a fresh drawing.
-    if (`${(state.hair.contour || []).join(",")}|${state.hair.crown ?? 1}` !== prevShape) mountHairArt();
+    if (shapeKey() !== prevShape) mountHairArt();
     persistHair();
     return Boolean(placement);
   } catch (error) {
@@ -2111,7 +2126,7 @@ async function saveHairLook() {
   }
   const look = {
     id: uid("look"),
-    name: `${style.label} · ${color.label}`,
+    name: hairLabel(style, color),
     occasion: "everyday",
     photoId: photo ? photo.id : null,
     makeupId: "none",
@@ -2431,6 +2446,15 @@ async function onClick(event) {
       state.hair.colorId = button.dataset.id;
       document.querySelectorAll('[data-action="hair-color"]').forEach((swatch) => {
         swatch.setAttribute("aria-pressed", swatch.dataset.id === state.hair.colorId ? "true" : "false");
+      });
+      mountHairArt();
+      persistHair();
+    } else if (action === "hair-finish") {
+      state.hair.finish = hairFinishById(button.dataset.id).id;
+      document.querySelectorAll('[data-action="hair-finish"]').forEach((chip) => {
+        const on = chip.dataset.id === state.hair.finish;
+        chip.classList.toggle("active", on);
+        chip.setAttribute("aria-pressed", on ? "true" : "false");
       });
       mountHairArt();
       persistHair();

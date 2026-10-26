@@ -5,6 +5,7 @@ import {
   FACE_POINTS,
   FACE_SHAPES,
   CONTOUR_STEPS,
+  HAIR_FINISHES,
   FACE_OVAL,
   HAIR_AUDIENCES,
   HAIR_COLORS,
@@ -21,6 +22,8 @@ import {
   MIN_CROWN,
   containRect,
   contourRadius,
+  domeThinning,
+  finishAmount,
   defaultHairPlacement,
   facePointsFromLandmarks,
   fitHairToFace,
@@ -65,7 +68,7 @@ function webpSize(buffer) {
   return { width: 0, height: 0, hasAlpha: false };
 }
 
-test("trend sets: sixteen women's and fourteen men's styles and six labeled colors", () => {
+test("trend sets: women's and men's styles and fourteen labeled colors", () => {
   assert.deepEqual(HAIR_AUDIENCES.map((item) => item.label), ["Women", "Men"]);
   assert.equal(new Set(HAIR_STYLES.map((style) => style.id)).size, HAIR_STYLES.length);
   assert.equal(new Set(HAIR_STYLES.map((style) => style.src)).size, HAIR_STYLES.length);
@@ -89,7 +92,13 @@ test("trend sets: sixteen women's and fourteen men's styles and six labeled colo
     assert.ok(HAIR_STYLES.find((style) => style.id === id).face.allow <= 0.05, `${id} stays close to the head`);
   }
   assert.ok(!HAIR_STYLES.some((style) => /pompadour|man bun/i.test(style.label)));
-  assert.deepEqual(HAIR_COLORS.map((color) => color.label), ["Black", "Espresso", "Light Brown", "Blonde", "Auburn", "Pink"]);
+  assert.deepEqual(HAIR_COLORS.map((color) => color.label), [
+    "Jet Black", "Espresso", "Chestnut", "Light Brown", "Caramel Honey", "Golden Blonde", "Ash Blonde",
+    "Platinum", "Copper", "Auburn", "Burgundy", "Silver Gray", "Rose Pink", "Lavender",
+  ]);
+  // Old saved looks keep working: the original ids are still here.
+  for (const id of ["black", "dark-brown", "light-brown", "blonde", "auburn", "pink"]) assert.ok(HAIR_COLORS.some((c) => c.id === id), id);
+  assert.equal(new Set(HAIR_COLORS.map((c) => c.id)).size, HAIR_COLORS.length);
 });
 
 test("each hairstyle is a transparent WebP of the same size, under 300 KB", async () => {
@@ -104,20 +113,20 @@ test("each hairstyle is a transparent WebP of the same size, under 300 KB", asyn
   }
 });
 
-test("service worker precaches the app at v16 and caches portraits as they're viewed", async () => {
+test("service worker precaches the app at v17 and caches portraits as they're viewed", async () => {
   const sw = await readFile(new URL("../sw.js", import.meta.url), "utf8");
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   const app = await readFile(new URL("../js/app.js", import.meta.url), "utf8");
   const fit = await readFile(new URL("../js/face-fit.js", import.meta.url), "utf8");
-  assert.match(sw, /wingscrew-looks-v16/);
-  assert.match(sw, /app\.js\?v=16/);
-  assert.match(sw, /hair\.js\?v=16/);
-  assert.match(sw, /face-fit\.js\?v=16/);
-  assert.match(html, /app\.js\?v=16/);
-  assert.match(app, /hair\.js\?v=16/);
-  assert.match(app, /face-fit\.js\?v=16/);
-  assert.match(fit, /hair\.js\?v=16/);
-  assert.doesNotMatch(`${sw}${html}${app}${fit}`, /\?v=15"/);
+  assert.match(sw, /wingscrew-looks-v17/);
+  assert.match(sw, /app\.js\?v=17/);
+  assert.match(sw, /hair\.js\?v=17/);
+  assert.match(sw, /face-fit\.js\?v=17/);
+  assert.match(html, /app\.js\?v=17/);
+  assert.match(app, /hair\.js\?v=17/);
+  assert.match(app, /face-fit\.js\?v=17/);
+  assert.match(fit, /hair\.js\?v=17/);
+  assert.doesNotMatch(`${sw}${html}${app}${fit}`, /\?v=1[56]"/);
   for (const style of HAIR_STYLES) assert.ok(sw.includes(`./${style.src}`), style.src);
   for (const model of HAIR_MODELS) assert.ok(sw.includes(`./${model.src}`), model.src);
   for (const file of ["vision_bundle.mjs", "wasm/vision_wasm_internal.wasm", "face_landmarker.task", "hair_segmenter.tflite"]) {
@@ -280,6 +289,9 @@ test("vendored face model is local and licensed", async () => {
   assert.doesNotMatch(fit, /https?:\/\//, "face fit loads nothing from the network");
   const bundle = await readFile(new URL("vision_bundle.mjs", base), "utf8");
   assert.doesNotMatch(bundle, /sourceMappingURL/);
+  // MediaPipe's usage logging (POST to odml.pa.googleapis.com) is switched off.
+  assert.ok(bundle.includes("flush(t,e){this.i=[];t?.();return;"), "logging flush is a no-op");
+  assert.doesNotMatch(bundle, /setInterval\(\(\)=>\{this\.flush\(\)\},6e4\)/);
 });
 
 test("app name and footer stay put", async () => {
@@ -375,21 +387,83 @@ test("auto-fit centers the face between hairline and chin, keeps the style's sha
   assert.equal(fitHairToFace(flat, { imageW: 600, imageH: 800, stageW: 300, stageH: 400 }, style), null);
 });
 
-test("no crown press-down: the hair above the head is thinned as a dome, never flattened", () => {
+test("no crown press-down: the top is a smooth dome a little above the skull", () => {
   const stage = { imageW: 800, imageH: 800, stageW: 400, stageH: 400 };
   const points = synthetic({ cx: 0.5, cy: 0.52, size: 0.4 });
   for (const style of HAIR_STYLES) {
     const fit = fitHairToFace(points, stage, style);
     assert.equal(fit.topScale, undefined, "v15 press-down is gone");
-    assert.ok(fit.crown >= MIN_CROWN && fit.crown <= 1, `${style.id} crown ${fit.crown}`);
-    // Thinning is strongest straight up and fades to none at ear level.
     const face = style.face;
-    const flat = Array(CONTOUR_STEPS).fill(0).map((_, i) => openingRadius(face, (i / CONTOUR_STEPS) * Math.PI * 2));
-    const upOut = warpSource(HAIR_FACE.cx, HAIR_FACE.cy - flat[CONTOUR_STEPS * 0.75] - 20, face, flat, 0.5);
-    assert.ok(Math.abs(upOut.y - (HAIR_FACE.cy - flat[CONTOUR_STEPS * 0.75] - 40)) < 0.6, `${style.id} reads twice as far up`);
-    const sideOut = warpSource(HAIR_FACE.cx + face.halfW + 20, HAIR_FACE.cy, face, flat, 0.5);
-    assert.ok(Math.abs(sideOut.x - (HAIR_FACE.cx + face.halfW + 20)) < 0.6, `${style.id} sides keep their thickness`);
+    assert.ok(fit.crownTop > HAIR_FACE.cy - face.top, `${style.id} crown sits above the hairline`);
+    // A tall source crown gets thinned to an ellipse; the outer edge stays round (no flat top).
+    const ring = fit.contour;
+    const outer = ring.map((_, i) => openingRadius(face, (i / ring.length) * Math.PI * 2) + 70);
+    const thin = domeThinning(face, ring, outer, fit.crownTop);
+    assert.equal(thin.length, ring.length);
+    assert.ok(thin.every((c) => c >= MIN_CROWN - 1e-9 && c <= 1), `${style.id} thinning range`);
+    const n = ring.length;
+    const outR = (i) => ring[i] + (outer[i] - openingRadius(face, (i / n) * Math.PI * 2)) * thin[i];
+    const top = outR(n * 0.75);
+    assert.ok(Math.abs(top - Math.max(fit.crownTop, ring[n * 0.75] + 6)) < 0.25 * fit.crownTop, `${style.id} top near the dome (${top.toFixed(0)} vs ${fit.crownTop})`);
+    // Round, not boxy: the 45-degree shoulders of the dome sit well inside the corners of a box.
+    const box = Math.hypot(outR(0), top);
+    assert.ok(outR(n * 0.625) < 0.95 * box && outR(n * 0.875) < 0.95 * box, `${style.id} dome shoulders are rounded`);
+    assert.equal(thin[0], 1, "no thinning at ear level");
   }
+});
+
+test("turned heads: the far side of the skull is covered, the near side hugs the cheek", () => {
+  const face = HAIR_STYLES.find((item) => item.id === "pixie").face;
+  const outline = [];
+  for (let i = 0; i < 36; i += 1) {
+    const a = (i / 36) * Math.PI * 2;
+    const ry = Math.sin(a) < 0 ? HAIR_FACE.cy - face.top : face.chin - HAIR_FACE.cy;
+    outline.push({ x: HAIR_FACE.cx + Math.cos(a) * face.halfW, y: HAIR_FACE.cy + Math.sin(a) * ry });
+  }
+  const level = headContour(outline, HAIR_FACE.cy, face.top, 0);
+  const turned = headContour(outline, HAIR_FACE.cy, face.top, 0.8); // nose toward +x
+  assert.ok(contourRadius(turned, Math.PI) > contourRadius(level, Math.PI) * 1.5, "far side widens");
+  assert.equal(contourRadius(turned, 0), contourRadius(level, 0), "near side unchanged");
+  assert.ok(contourRadius(turned, Math.PI / 2) === contourRadius(level, Math.PI / 2), "chin unchanged");
+  // Between the face edge and the skull edge, the hair's inner band is stretched over the gap (no bald patch).
+  const rFace = contourRadius(level, Math.PI);
+  const rSkull = contourRadius(turned, Math.PI);
+  const mid = warpSource(HAIR_FACE.cx - (rFace + rSkull) / 2, HAIR_FACE.cy, face, turned, 1, level);
+  const back = HAIR_FACE.cx - mid.x;
+  assert.ok(back > openingRadius(face, Math.PI) && back < openingRadius(face, Math.PI) + 20, `reads hair just outside the opening (${back})`);
+  // Fit on the turned fixture faces reports the yaw sign and widens the far side.
+  for (const name of ["turned-woman", "turned-tilted-man"]) {
+    const f = FACES[name];
+    const fit = fitHairToFace(f.points, { imageW: f.imageW, imageH: f.imageH, stageW: 342, stageH: 456 }, HAIR_STYLES[0]);
+    assert.ok(Math.abs(fit.yaw) > 0.1, `${name} yaw ${fit.yaw}`);
+    assert.ok(Array.isArray(fit.faceContour));
+  }
+});
+
+test("dimensional color: balayage lightens the ends, rooted darkens the roots, highlights streak", () => {
+  assert.deepEqual(finishAmount("solid", 0.5, 0.5), { light: 0, dark: 0 });
+  assert.ok(finishAmount("balayage", 0.5, 0.95).light > 0.5 && finishAmount("balayage", 0.5, 0.1).light === 0);
+  assert.ok(finishAmount("rooted", 0.5, 0.02).dark > 0.7 && finishAmount("rooted", 0.5, 0.6).dark === 0);
+  const lit = Array.from({ length: 200 }, (_, i) => finishAmount("highlights", i / 200, 0.5).light);
+  const share = lit.filter((v) => v > 0.3).length / lit.length;
+  assert.ok(share > 0.15 && share < 0.6, `streaks cover ${share}`);
+  assert.deepEqual(HAIR_FINISHES.map((f) => f.id), ["solid", "balayage", "highlights", "rooted"]);
+  // On a real mask: a 1-wide column of hair, top to bottom.
+  const color = HAIR_COLORS.find((c) => c.id === "dark-brown");
+  const make = () => {
+    const d = new Uint8ClampedArray(20 * 4);
+    for (let i = 0; i < 20; i += 1) d.set([90, 70, 55, 255], i * 4);
+    return d;
+  };
+  const mask = new Float32Array(20).fill(1);
+  const lum = (d, i) => 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+  const solid = recolorHairPixels(make(), mask, hairColorLut(color), { width: 1, finish: "solid", color });
+  const bal = recolorHairPixels(make(), mask, hairColorLut(color), { width: 1, finish: "balayage", color });
+  const root = recolorHairPixels(make(), mask, hairColorLut(color), { width: 1, finish: "rooted", color });
+  assert.ok(lum(bal, 19) > lum(solid, 19) + 20, "ends lighter");
+  assert.ok(Math.abs(lum(bal, 0) - lum(solid, 0)) < 1, "roots unchanged");
+  assert.ok(lum(root, 0) < lum(solid, 0), "roots darker");
+  assert.ok(Math.abs(lum(root, 19) - lum(solid, 19)) < 1, "ends unchanged");
 });
 
 test("head contour: the warp maps the style's opening onto the real head outline", () => {
@@ -426,6 +500,7 @@ test("auto-fit on every model and the tilted test faces lands inside the face", 
   const stageH = 456;
   assert.ok(Object.keys(FACES).length >= 14);
   for (const [name, face] of Object.entries(FACES)) {
+    if (name.startsWith("turned")) continue; // strongly turned heads are checked in their own test
     const p = face.points;
     const fitted = containRect(stageW, stageH, face.imageW, face.imageH);
     const at = (pt) => ({ x: fitted.x + pt.x * fitted.w, y: fitted.y + pt.y * fitted.h });

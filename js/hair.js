@@ -89,13 +89,125 @@ export function hairStylesFor(audience) {
  * dark strands take `shadow`, average strands `mid`, shine takes `highlight`.
  */
 export const HAIR_COLORS = [
-  { id: "black", label: "Black", hex: "#1a1412", shadow: "#0a0808", mid: "#262120", highlight: "#6b625d" },
+  { id: "black", label: "Jet Black", hex: "#1a1412", shadow: "#0a0808", mid: "#262120", highlight: "#6b625d" },
   { id: "dark-brown", label: "Espresso", hex: "#2e1b13", shadow: "#0e0705", mid: "#3b2318", highlight: "#8c6450" },
+  { id: "chestnut", label: "Chestnut", hex: "#5a3220", shadow: "#1c0d07", mid: "#5a3220", highlight: "#a8704c" },
   { id: "light-brown", label: "Light Brown", hex: "#8a5a32", shadow: "#28160b", mid: "#87593a", highlight: "#d9b48c" },
-  { id: "blonde", label: "Blonde", hex: "#e2c07a", shadow: "#5b4020", mid: "#c7a46b", highlight: "#fbeccb" },
+  { id: "caramel", label: "Caramel Honey", hex: "#a8743f", shadow: "#3a2210", mid: "#a26d3c", highlight: "#ebc48e" },
+  { id: "blonde", label: "Golden Blonde", hex: "#e2c07a", shadow: "#5b4020", mid: "#c7a46b", highlight: "#fbeccb" },
+  { id: "ash-blonde", label: "Ash Blonde", hex: "#c9b89a", shadow: "#4a4236", mid: "#b0a084", highlight: "#ece3d0" },
+  { id: "platinum", label: "Platinum", hex: "#ece6d6", shadow: "#8a8478", mid: "#d8d1c0", highlight: "#fffdf6" },
+  { id: "copper", label: "Copper", hex: "#b5562a", shadow: "#3a1508", mid: "#b0532a", highlight: "#f0a070" },
   { id: "auburn", label: "Auburn", hex: "#8f2d1f", shadow: "#240b06", mid: "#7f2c18", highlight: "#cf7650" },
-  { id: "pink", label: "Pink", hex: "#e56aa6", shadow: "#3d1024", mid: "#c95b8c", highlight: "#fbc3da" },
+  { id: "burgundy", label: "Burgundy", hex: "#6e1a2c", shadow: "#1f050b", mid: "#6a1a2b", highlight: "#b8566a" },
+  { id: "silver", label: "Silver Gray", hex: "#b9bcc2", shadow: "#3e4046", mid: "#a6a9b0", highlight: "#f2f3f6" },
+  { id: "pink", label: "Rose Pink", hex: "#e56aa6", shadow: "#3d1024", mid: "#c95b8c", highlight: "#fbc3da" },
+  { id: "lavender", label: "Lavender", hex: "#b9a2dc", shadow: "#3e3054", mid: "#a690cc", highlight: "#ece2fb" },
 ];
+
+/**
+ * Dimensional color, painted inside the hair: Balayage lightens toward the ends,
+ * Highlights add fine lighter streaks, Rooted keeps darker roots.
+ */
+export const HAIR_FINISHES = [
+  { id: "solid", label: "All over" },
+  { id: "balayage", label: "Balayage" },
+  { id: "highlights", label: "Highlights" },
+  { id: "rooted", label: "Rooted" },
+];
+
+export function hairFinishById(id) {
+  return HAIR_FINISHES.find((item) => item.id === id) || HAIR_FINISHES[0];
+}
+
+const LIGHT_BASES = new Set(["blonde", "ash-blonde", "platinum", "silver", "pink", "lavender", "caramel"]);
+
+/** The lighter shade a finish lifts toward, and the darker one roots fall to. */
+export function finishShades(color) {
+  const lift = LIGHT_BASES.has(color.id)
+    ? { id: "lift-light", shadow: "#9a9282", mid: "#e6dfcf", highlight: "#fffdf8" }
+    : { id: "lift-honey", shadow: "#4a2e16", mid: "#b8864f", highlight: "#f1d2a2" };
+  const root = color.id === "black"
+    ? { id: "root-black", shadow: "#050404", mid: "#151110", highlight: "#4a4340" }
+    : { id: "root-dark", shadow: "#0c0604", mid: "#2e1c14", highlight: "#6e5040" };
+  return { lift, root };
+}
+
+function smooth(e0, e1, x) {
+  const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+}
+
+/** A steady pseudo-random 0..1 per integer (same streaks every time). */
+function hash01(n) {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/**
+ * How much to lighten (`light`) or darken (`dark`) a hair pixel for a finish.
+ * `u` runs 0..1 across the hair, `v` 0..1 from its top to its ends.
+ */
+export function finishAmount(finish, u, v) {
+  if (finish === "balayage") {
+    const band = 0.8 + 0.2 * streak(u, 14);
+    return { light: smooth(0.3, 0.95, v) * 0.72 * band, dark: 0 };
+  }
+  if (finish === "highlights") {
+    return { light: streak(u, 38) * 0.62 * smooth(0.02, 0.12, v), dark: 0 };
+  }
+  if (finish === "rooted") {
+    return { light: 0, dark: (1 - smooth(0.06, 0.3, v)) * 0.82 };
+  }
+  return { light: 0, dark: 0 };
+}
+
+/** Soft streak pattern: about a third of `bands` columns are lit, edges eased. */
+function streak(u, bands) {
+  const f = u * bands;
+  const i = Math.floor(f);
+  const t = f - i;
+  const on = (j) => (hash01(j) > 0.64 ? 1 : 0);
+  const a = on(i);
+  const b = on(i + 1);
+  return a + (b - a) * smooth(0.55, 1, t);
+}
+
+/** Bounding box (pixels) of where `inside(i)` holds, for a w-wide grid of n pixels. */
+function boxOf(n, width, inside) {
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -1;
+  let y1 = -1;
+  for (let i = 0; i < n; i += 1) {
+    if (!inside(i)) continue;
+    const x = i % width;
+    const y = (i / width) | 0;
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
+  }
+  return x1 < 0 ? null : { x0, y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
+}
+
+/** Mix a finish into one pixel's color (in place). `step` is the LUT index * 3. */
+function finishPixel(data, o, step, amount, luts) {
+  const { light, dark } = amount;
+  if (light <= 0 && dark <= 0) return;
+  for (let c = 0; c < 3; c += 1) {
+    let v = data[o + c];
+    if (light > 0) v += (luts.lift[step + c] - v) * light;
+    if (dark > 0) v += (luts.root[step + c] - v) * dark;
+    data[o + c] = v;
+  }
+}
+
+function finishLuts(color, finish) {
+  if (!color || !finish || finish === "solid") return null;
+  const { lift, root } = finishShades(color);
+  return { lift: hairColorLut(lift), root: hairColorLut(root) };
+}
 
 /** Face shapes, in the order the model picker shows them. */
 export const FACE_SHAPES = [
@@ -176,7 +288,7 @@ export function defaultHairPlacement() {
     stretchY: 1,
     lift: 0,
     pushBack: false,
-    crown: 1,
+    crownTop: 0,
     contour: null,
     fitFor: "",
   };
@@ -211,13 +323,20 @@ export function hairColorLut(color) {
  * Recolor RGBA pixels in place. The source is gray, so its red channel is the
  * strand brightness; alpha is left alone.
  */
-export function tintHairPixels(data, lut) {
+export function tintHairPixels(data, lut, { width = 0, finish = "solid", color = null } = {}) {
+  const luts = width ? finishLuts(color, finish) : null;
+  const n = data.length / 4;
+  const box = luts ? boxOf(n, width, (i) => data[i * 4 + 3] > 40) : null;
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] === 0) continue;
     const step = data[i] * 3;
     data[i] = lut[step];
     data[i + 1] = lut[step + 1];
     data[i + 2] = lut[step + 2];
+    if (box) {
+      const p = i / 4;
+      finishPixel(data, i, step, finishAmount(finish, ((p % width) - box.x0) / box.w, (((p / width) | 0) - box.y0) / box.h), luts);
+    }
   }
   return data;
 }
@@ -263,6 +382,7 @@ export const FACE_POINTS = {
   eyeLeft: 33,
   eyeRight: 263,
   top: 10,
+  nose: 1,
 };
 
 /** The Face Mesh outline (forehead, temples, cheeks, jaw), clockwise from the top. */
@@ -288,10 +408,13 @@ export function facePointsFromLandmarks(landmarks) {
  * measured on front-facing heads: the hairline sits about 0.38 above the brow and
  * the top of the skull about 0.58 above it.
  */
-export const HEAD = { hairline: 0.38, skull: 0.58 };
+export const HEAD = { hairline: 0.38, skull: 0.62 };
 
 /** Angles sampled around the face for the head outline (the warp follows it). */
 export const CONTOUR_STEPS = 48;
+
+/** How much wider the head reads on the far side of a fully turned face. */
+export const YAW_SPREAD = 0.9;
 
 /** Least the hair above the head may be thinned to (1 = untouched). */
 export const MIN_CROWN = 0.45;
@@ -331,7 +454,10 @@ export function fitHairToFace(points, { imageW, imageH, stageW, stageH }, styleE
   const mid = (dot(brow, down) - hairlineAbove + dot(chin, down)) / 2;
   const openMid = (face.top + face.chin) / 2;
   const centerDown = mid + (HAIR_FACE.cy - openMid) * unit;
-  const centerAlong = dot(brow, along);
+  // Across: the middle of the face outline (the brow drifts off-center when the head turns).
+  const ovalStage = points.oval?.length >= 12 ? points.oval.map(at) : null;
+  const spans = ovalStage ? ovalStage.map((p) => dot(p, along)) : null;
+  const centerAlong = spans ? (Math.min(...spans) + Math.max(...spans)) / 2 : dot(brow, along);
   const center = {
     x: along.x * centerAlong + down.x * centerDown,
     y: along.y * centerAlong + down.y * centerDown,
@@ -342,14 +468,18 @@ export function fitHairToFace(points, { imageW, imageH, stageW, stageH }, styleE
     return { x: HAIR_FACE.cx + dot(d, along) / unit, y: HAIR_FACE.cy + dot(d, down) / unit };
   };
   const browView = toView(brow);
-  const outline = points.oval?.length >= 12
-    ? points.oval.map((p) => toView(at(p)))
+  const outline = ovalStage
+    ? ovalStage.map(toView)
     : defaultOutline(face, faceWidth / (2 * unit));
-  const contour = headContour(outline, browView.y, face.top);
-  // Crown: how far hair may rise above the hairline (skull + the style's allowance).
+  // Yaw: where the nose tip sits between the cheeks (-1 turned to its left on screen, +1 right).
+  const yaw = points.nose
+    ? Math.max(-1, Math.min(1, ((dot(sub(at(points.nose), at(points.left)), along) / faceWidth) - 0.5) * 2))
+    : 0;
+  const contour = headContour(outline, browView.y, face.top, yaw);
+  const faceContour = Math.abs(yaw) >= 0.05 ? headContour(outline, browView.y, face.top, 0) : null;
+  // Crown: the hair may rise a little above the skull (skull + the style's allowance).
   const wantAbove = (browChin * (HEAD.skull - HEAD.hairline + face.allow)) / unit;
-  const haveAbove = face.top - face.crown;
-  const crown = haveAbove > 1 ? Math.max(MIN_CROWN, Math.min(1, wantAbove / haveAbove)) : 1;
+  const crownTop = HAIR_FACE.cy - face.top + wantAbove;
   return {
     x: center.x / stageW,
     y: center.y / stageH,
@@ -357,8 +487,10 @@ export function fitHairToFace(points, { imageW, imageH, stageW, stageH }, styleE
     rotation: (theta * 180) / Math.PI,
     stretchX: 1,
     stretchY: 1,
-    crown: Math.round(crown * 50) / 50,
+    crownTop: Math.round(crownTop * 2) / 2,
+    yaw: Math.round(yaw * 100) / 100,
     contour,
+    faceContour,
   };
 }
 
@@ -378,7 +510,7 @@ function defaultOutline(face, halfW) {
  * points right, angles grow clockwise on screen, so 3/4 turn is straight up). The
  * mesh stops below the hairline, so the part above the brow is raised to reach it.
  */
-export function headContour(outline, browY, hairlineY) {
+export function headContour(outline, browY, hairlineY, yaw = 0) {
   const top = Math.min(...outline.map((p) => p.y));
   const lift = top < browY - 1 && hairlineY < top ? (browY - hairlineY) / (browY - top) : 1;
   const pts = outline.map((p) => (p.y < browY ? { x: p.x, y: browY - (browY - p.y) * lift } : p));
@@ -393,7 +525,13 @@ export function headContour(outline, browY, hairlineY) {
       const r = rayHit(dir, { x: p.x - HAIR_FACE.cx, y: p.y - HAIR_FACE.cy }, { x: q.x - HAIR_FACE.cx, y: q.y - HAIR_FACE.cy });
       if (r > best) best = r;
     }
-    radii.push(Math.round((best || HAIR_FACE.rx) * 2) / 2);
+    let r = best || HAIR_FACE.rx;
+    // Turned heads: the back of the skull shows past the face on the far side.
+    const far = yaw * dir.x < 0 ? Math.abs(yaw) * Math.abs(dir.x) ** 0.6 : 0;
+    const high = dir.y <= 0 ? 1 : Math.max(0, 1 - dir.y / 0.6);
+    r *= 1 + YAW_SPREAD * far * high;
+    // ...and a turned face's near side is the cheek edge, so nothing is added there.
+    radii.push(Math.round(r * 2) / 2);
   }
   return radii;
 }
@@ -427,12 +565,79 @@ export function contourRadius(contour, a) {
 }
 
 /**
+ * Outer edge of a hair image, per angle (view units from HAIR_FACE): march out
+ * from the face opening until the hair runs out. `alpha(x, y)` reads opacity
+ * (0..255) at a view-unit point.
+ */
+export function outerProfile(alpha, face, steps = CONTOUR_STEPS) {
+  const out = [];
+  for (let i = 0; i < steps; i += 1) {
+    const a = (i / steps) * Math.PI * 2;
+    const dx = Math.cos(a);
+    const dy = Math.sin(a);
+    const r0 = openingRadius(face, a);
+    let last = r0;
+    let gap = 0;
+    for (let r = r0; r < 700; r += 1) {
+      const x = HAIR_FACE.cx + dx * r;
+      const y = HAIR_FACE.cy + dy * r;
+      if (x < 0 || y < 0 || x >= HAIR_VIEW_W || y >= HAIR_VIEW_H) break;
+      if (alpha(x, y) > 40) {
+        last = r;
+        gap = 0;
+      } else if ((gap += 1) > 10) break;
+    }
+    out.push(last);
+  }
+  return out;
+}
+
+/**
+ * Per-angle thinning (1 = untouched) so the hair above the head ends on a smooth
+ * dome: an ellipse that meets the hair's own width at ear level and tops out at
+ * `crownTop` (view units above HAIR_FACE), never below the head plus a margin.
+ * Only thins, never adds; fades to none at ear level; smoothed so it can't kink.
+ */
+export function domeThinning(face, contour, outer, crownTop) {
+  const n = contour.length;
+  if (!(crownTop > 0) || outer.length !== n) return new Array(n).fill(1);
+  const outAt = (i) => contour[i] + Math.max(0, outer[i] - openingRadius(face, (i / n) * Math.PI * 2));
+  const rxRight = outAt(0);
+  const rxLeft = outAt(n / 2);
+  const ry = Math.max(crownTop, contour[(n * 3) / 4] + 6);
+  const raw = [];
+  for (let i = 0; i < n; i += 1) {
+    const a = (i / n) * Math.PI * 2;
+    const up = Math.max(0, -Math.sin(a));
+    const have = outer[i] - openingRadius(face, a);
+    if (up <= 0 || have <= 1) {
+      raw.push(1);
+      continue;
+    }
+    const c = Math.cos(a) / (Math.cos(a) >= 0 ? rxRight : rxLeft);
+    const s = Math.sin(a) / ry;
+    const dome = 1 / Math.sqrt(c * c + s * s);
+    const want = Math.max(4, dome - contour[i]);
+    const fit = Math.max(MIN_CROWN, Math.min(1, want / have));
+    raw.push(1 - up ** 0.7 * (1 - fit));
+  }
+  return raw.map((_, i) => {
+    let sum = 0;
+    for (let d = -2; d <= 2; d += 1) sum += raw[(i + d + n) % n];
+    return Math.round((sum / 5) * 100) / 100;
+  });
+}
+
+/**
  * Where an output point (view units) reads from in the style image. Inside the
  * head the opening is scaled onto the outline; outside, the hair keeps its
  * thickness but starts at the outline, and above the head it is thinned by
  * `crown` (fading to none at ear level) so the top stays a rounded dome.
  */
-export function warpSource(x, y, face, contour, crown = 1) {
+/** Hair (view units) stretched over skull that shows past a turned face. */
+export const GAP_BAND = 14;
+
+export function warpSource(x, y, face, contour, thin = 1, faceContour = null) {
   const dx = x - HAIR_FACE.cx;
   const dy = y - HAIR_FACE.cy;
   const r = Math.hypot(dx, dy);
@@ -440,9 +645,12 @@ export function warpSource(x, y, face, contour, crown = 1) {
   const a = Math.atan2(dy, dx);
   const rHead = contourRadius(contour, a);
   const rOpen = openingRadius(face, a);
-  const up = Math.max(0, -dy / r);
-  const c = 1 - (1 - crown) * up * up;
-  const rs = r <= rHead ? (r * rOpen) / rHead : rOpen + (r - rHead) / c;
+  const c = Array.isArray(thin) || ArrayBuffer.isView(thin) ? contourRadius(thin, a) : 1 - (1 - thin) * Math.max(0, -dy / r) ** 2;
+  const rFace = faceContour ? Math.min(rHead, contourRadius(faceContour, a)) : rHead;
+  let rs;
+  if (r <= rFace) rs = (r * rOpen) / rFace;
+  else if (r <= rHead) rs = rOpen + ((r - rFace) / (rHead - rFace)) * GAP_BAND; // cover the skull past the face
+  else rs = rOpen + (rHead > rFace ? GAP_BAND : 0) + (r - rHead) / c;
   return { x: HAIR_FACE.cx + (dx / r) * rs, y: HAIR_FACE.cy + (dy / r) * rs };
 }
 
@@ -489,12 +697,14 @@ export function pushBackOval(width, height, styleEntry) {
  * Bend the hair so its inner edge follows a head outline (see warpSource).
  * Works on whole pixels with bilinear sampling. Browser only.
  */
-function warpToHead(source, styleEntry, contour, crown) {
+function warpToHead(source, styleEntry, contour, crownTop, faceContour) {
   const face = { ...OPENING, ...(styleEntry?.face || {}) };
   const w = source.width;
   const h = source.height;
   const k = w / HAIR_VIEW_W;
   const src = source.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, w, h).data;
+  const outer = outerProfile((x, y) => src[(Math.floor(y * k) * w + Math.floor(x * k)) * 4 + 3], face, contour.length);
+  const crown = domeThinning(face, contour, outer, crownTop);
   const out = document.createElement("canvas");
   out.width = w;
   out.height = h;
@@ -503,7 +713,7 @@ function warpToHead(source, styleEntry, contour, crown) {
   const dst = image.data;
   for (let py = 0; py < h; py += 1) {
     for (let px = 0; px < w; px += 1) {
-      const s = warpSource((px + 0.5) / k, (py + 0.5) / k, face, contour, crown);
+      const s = warpSource((px + 0.5) / k, (py + 0.5) / k, face, contour, crown, faceContour);
       const sx = s.x * k - 0.5;
       const sy = s.y * k - 0.5;
       if (sx < 0 || sy < 0 || sx >= w - 1 || sy >= h - 1) continue;
@@ -538,10 +748,11 @@ function warpToHead(source, styleEntry, contour, crown) {
  * A canvas with the style painted in the color, bent to the head when a contour
  * is given. Cached per style, color, push-back, and head shape. Browser only.
  */
-export async function tintedHairCanvas(styleEntry, color, { pushBack = false, contour = null, crown = 1 } = {}) {
+export async function tintedHairCanvas(styleEntry, color, { pushBack = false, contour = null, faceContour = null, crownTop = 0, finish = "solid" } = {}) {
   const ring = Array.isArray(contour) && contour.length === CONTOUR_STEPS ? contour : null;
-  const thin = ring ? Math.max(MIN_CROWN, Math.min(1, Number(crown) || 1)) : 1;
-  const key = `${styleEntry.src}|${color.id}|${pushBack ? 1 : 0}|${ring ? ring.join(",") : "-"}|${thin}`;
+  const faceRing = ring && Array.isArray(faceContour) && faceContour.length === CONTOUR_STEPS ? faceContour : null;
+  const thin = ring ? Number(crownTop) || 0 : 0;
+  const key = `${styleEntry.src}|${color.id}|${finish}|${pushBack ? 1 : 0}|${ring ? ring.join(",") : "-"}|${faceRing ? faceRing.join(",") : "-"}|${thin}`;
   if (tintCache.has(key)) return tintCache.get(key);
   const image = await loadHairImage(styleEntry.src);
   let canvas = document.createElement("canvas");
@@ -550,7 +761,7 @@ export async function tintedHairCanvas(styleEntry, color, { pushBack = false, co
   let ctx = canvas.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(image, 0, 0);
   const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  tintHairPixels(pixels.data, hairColorLut(color));
+  tintHairPixels(pixels.data, hairColorLut(color), { width: canvas.width, finish, color });
   ctx.putImageData(pixels, 0, 0);
   if (pushBack) {
     const oval = pushBackOval(canvas.width, canvas.height, styleEntry);
@@ -571,7 +782,7 @@ export async function tintedHairCanvas(styleEntry, color, { pushBack = false, co
     ctx.fill();
     ctx.restore();
   }
-  if (ring) canvas = warpToHead(canvas, styleEntry, ring, thin);
+  if (ring) canvas = warpToHead(canvas, styleEntry, ring, thin, faceRing);
   canvas.className = "hair-art";
   if (tintCache.size > 24) tintCache.delete(tintCache.keys().next().value);
   tintCache.set(key, canvas);
@@ -619,8 +830,10 @@ export async function flattenHairCanvas({
  * map, so strands keep their light and shade in any of the colors, and the mask
  * blends the edges.
  */
-export function recolorHairPixels(data, mask, lut) {
+export function recolorHairPixels(data, mask, lut, { width = 0, finish = "solid", color = null } = {}) {
   const n = Math.min(mask.length, data.length / 4);
+  const luts = width ? finishLuts(color, finish) : null;
+  const box = luts ? boxOf(n, width, (i) => mask[i] >= 0.5) : null;
   const hist = new Uint32Array(256);
   let count = 0;
   for (let i = 0; i < n; i += 1) {
@@ -650,6 +863,10 @@ export function recolorHairPixels(data, mask, lut) {
     data[o] += (lut[step] - data[o]) * a;
     data[o + 1] += (lut[step + 1] - data[o + 1]) * a;
     data[o + 2] += (lut[step + 2] - data[o + 2]) * a;
+    if (box) {
+      const f = finishAmount(finish, ((i % width) - box.x0) / box.w, (((i / width) | 0) - box.y0) / box.h);
+      finishPixel(data, o, step, { light: f.light * a, dark: f.dark * a }, luts);
+    }
   }
   return data;
 }

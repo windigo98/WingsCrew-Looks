@@ -641,6 +641,8 @@ body.in-studio.sheet-open .toast {
 }
 .hair-tip { margin-top: 0; }
 .hair-colors { padding-bottom: 8px; }
+.hair-finishes { padding-bottom: 6px; }
+.hair-finishes .chip { flex: 0 0 auto; white-space: nowrap; }
 .hair-swatch {
   display: flex;
   flex-direction: column;
