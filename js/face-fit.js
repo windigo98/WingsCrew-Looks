@@ -2,7 +2,7 @@
  * On-device face finding for the Hair screen. Loads the vendored MediaPipe
  * FaceLandmarker on first use. Nothing leaves the phone.
  */
-import { facePointsFromLandmarks } from "./hair.js?v=3";
+import { facePointsFromLandmarks } from "./hair.js?v=15";
 
 const BASE = new URL("../assets/vendor/mediapipe/", import.meta.url).href;
 let landmarkerPromise = null;

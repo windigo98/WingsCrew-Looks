@@ -14,44 +14,74 @@ export const HAIR_FACE = { cx: 280, cy: 250, rx: 78, ry: 96 };
 /** View units that span the base frame width (keeps face size from earlier builds). */
 const HAIR_BASE_UNITS = 400;
 
-/** Shared face opening, in view units: hairline, chin, and half the cheek width. */
-const OPENING = { top: 154, chin: 346, halfW: 78 };
+/**
+ * Shared face opening, in view units: hairline (`top`), chin, and half the cheek
+ * width. `crown` is the top of the hair in the image; `allow` is how far the hair
+ * may rise above the top of the skull, as a share of the brow-to-chin length.
+ */
+const OPENING = { top: 154, chin: 346, halfW: 78, crown: 70, allow: 0.06 };
+
+/** Who a style is shown for. */
+export const HAIR_AUDIENCES = [
+  { id: "women", label: "Women" },
+  { id: "men", label: "Men" },
+];
 
 export const HAIR_GROUPS = [
   { id: "short", label: "Short" },
   { id: "medium", label: "Medium" },
   { id: "long", label: "Long" },
+  { id: "up", label: "Updos" },
   { id: "textured", label: "Textured" },
 ];
 
 function style(id, label, file, group, extra = {}) {
   const { face, ...rest } = extra;
-  return { id, label, src: `assets/hair/${file}.webp`, group, bangs: false, ...rest, face: { ...OPENING, ...(face || {}) } };
+  return { id, label, src: `assets/hair/${file}.webp`, group, bangs: false, for: ["women"], ...rest, face: { ...OPENING, ...(face || {}) } };
 }
 
 /**
- * `face` says where the face opening sits in each image (view units): `top` is the
- * hairline, `chin` the chin, `halfW` half the cheek width. Auto-fit maps these to
- * the detected face. `bangs` styles have a fringe that covers the upper forehead.
+ * 2026 salon favorites, named the way you'd ask for them. `face` says where the
+ * face opening and the crown sit in each image (view units). `bangs` styles have
+ * a fringe over the upper forehead. Shoulder Locs is in both sets.
  */
 export const HAIR_STYLES = [
-  style("pixie", "Textured Pixie", "pixie", "short", { bangs: true }),
-  style("taper", "Classic Taper", "taper", "short", { face: { top: 138 } }),
-  style("crop", "Textured Crop / Buzz Cut", "crop", "short", { bangs: true, face: { top: 140, halfW: 84 } }),
-  style("fade", "High-Top Fade", "high-top-fade", "short", { face: { top: 138 } }),
-  style("bob", "Chin-Length Blunt Bob", "bob", "medium"),
-  style("lob", "Collarbone Lob", "lob", "medium"),
-  style("shag", "Curtain Bangs Shag", "shag", "medium", { bangs: true }),
-  style("wolf", "Wolf Cut", "wolf", "medium", { bangs: true }),
-  style("straight", "Long Sleek Layers", "long-layers", "long"),
-  style("waves", "Beach Waves", "beach-waves", "long"),
-  style("silk", "Silk Press", "silk-press", "long"),
-  style("bun", "Sleek High Bun", "high-bun", "long"),
-  style("curls", "Defined Curls", "curls", "textured"),
-  style("afro", "Natural Afro", "afro", "textured"),
-  style("braids", "Knotless Box Braids", "braids", "textured"),
-  style("locs", "Starter Locs / Shoulder Locs", "locs", "textured"),
+  style("bob", "Sleek Chin Bob", "bob", "medium", { for: ["women"], face: { crown: 80, allow: 0.04 } }),
+  style("lob", "Italian Lob", "lob", "medium", { for: ["women"], face: { crown: 74, allow: 0.05 } }),
+  style("butterfly", "Butterfly Cut", "butterfly", "long", { bangs: true, for: ["women"], face: { crown: 13, allow: 0.1, dome: 0.75 } }),
+  style("straight", "Long Layers", "long-layers", "long", { for: ["women"], face: { crown: 90, allow: 0.04 } }),
+  style("blowout", "Bouncy Blowout", "blowout", "long", { for: ["women"], face: { crown: 9, allow: 0.14, dome: 0.7 } }),
+  style("waves", "Beach Waves", "beach-waves", "long", { for: ["women"], face: { crown: 76, allow: 0.07 } }),
+  style("silk", "Silk Press", "silk-press", "long", { for: ["women"], face: { crown: 76, allow: 0.03 } }),
+  style("curls", "Defined Curls", "curls", "textured", { for: ["women"], face: { crown: 62, allow: 0.14 } }),
+  style("braids", "Knotless Braids", "braids", "textured", { for: ["women"], face: { crown: 61, allow: 0.05 } }),
+  style("ponytail", "Sleek High Ponytail", "ponytail", "up", { for: ["women"], face: { crown: 52, allow: 0.14 } }),
+  style("bun", "High Bun / Chignon", "high-bun", "up", { for: ["women"], face: { crown: 33, allow: 0.3 } }),
+  style("pixie", "Textured Pixie", "pixie", "short", { bangs: true, for: ["women"], face: { crown: 45, allow: 0.1 } }),
+  style("wolf", "Wolf Cut", "wolf", "medium", { bangs: true, for: ["women"], face: { crown: 13, allow: 0.12, dome: 0.7 } }),
+  style("afro", "Natural Afro", "afro", "textured", { for: ["women"], face: { crown: 4, allow: 0.36 } }),
+  style("locs", "Shoulder Locs", "locs", "textured", { for: ["women", "men"], face: { crown: 90, allow: 0.06 } }),
+  style("shag", "Wispy Bangs Shag", "shag", "medium", { bangs: true, for: ["women"], face: { crown: 14, allow: 0.1, dome: 0.75 } }),
+  style("crop", "Low Taper + Textured Crop", "crop", "short", { bangs: true, for: ["men"], face: { top: 140, halfW: 84, crown: 81, allow: 0.07 } }),
+  style("buzz", "Buzz Cut", "buzz", "short", { for: ["men"], face: { crown: 69, allow: 0.04, dome: 0.75 } }),
+  style("taper", "Classic Side Part", "taper", "short", { for: ["men"], face: { top: 138, crown: 77, allow: 0.08 } }),
+  style("comma", "Comma Hair", "comma", "medium", { bangs: true, for: ["men"], face: { crown: 75, allow: 0.06, dome: 0.45 } }),
+  style("twoblock", "Two-Block", "twoblock", "medium", { bangs: true, for: ["men"], face: { crown: 78, allow: 0.06, dome: 0.5 } }),
+  style("softwolf", "Soft Wolf Cut", "softwolf", "medium", { bangs: true, for: ["men"], face: { crown: 70, allow: 0.08 } }),
+  style("mullet", "Modern Mullet", "mullet", "medium", { bangs: true, for: ["men"], face: { crown: 77, allow: 0.06, dome: 0.5 } }),
+  style("flow", "Flow (Swept Back)", "flow", "medium", { for: ["men"], face: { crown: 75, allow: 0.06, dome: 0.45 } }),
+  style("fade", "High-Top Fade", "high-top-fade", "short", { for: ["men"], face: { top: 138, crown: 46, allow: 0.32 } }),
+  style("waves360", "360 Waves", "waves360", "short", { for: ["men"], face: { crown: 59, allow: 0.04, dome: 0.75 } }),
+  style("curlytop", "Curly Top + Taper", "curlytop", "textured", { bangs: true, for: ["men"], face: { crown: 65, allow: 0.12, dome: 0.5 } }),
+  style("twists", "Two-Strand Twists", "twists", "textured", { bangs: true, for: ["men"], face: { crown: 75, allow: 0.1, dome: 0.5 } }),
+  style("cornrows", "Stitch Braids", "cornrows", "textured", { for: ["men"], face: { crown: 52, allow: 0.05, dome: 0.7 } }),
 ];
+
+export function hairStylesFor(audience) {
+  // A style's own set first, shared styles (listed under the other set) after.
+  const mine = HAIR_STYLES.filter((item) => item.for.includes(audience));
+  return [...mine.filter((item) => item.for[0] === audience), ...mine.filter((item) => item.for[0] !== audience)];
+}
 
 /**
  * `hex` is the swatch. `shadow`, `mid`, and `highlight` are the gradient map:
@@ -59,7 +89,7 @@ export const HAIR_STYLES = [
  */
 export const HAIR_COLORS = [
   { id: "black", label: "Black", hex: "#1a1412", shadow: "#0a0808", mid: "#262120", highlight: "#6b625d" },
-  { id: "dark-brown", label: "Dark Brown", hex: "#3a2418", shadow: "#140b07", mid: "#4a2f20", highlight: "#a07a60" },
+  { id: "dark-brown", label: "Espresso", hex: "#2e1b13", shadow: "#0e0705", mid: "#3b2318", highlight: "#8c6450" },
   { id: "light-brown", label: "Light Brown", hex: "#8a5a32", shadow: "#28160b", mid: "#87593a", highlight: "#d9b48c" },
   { id: "blonde", label: "Blonde", hex: "#e2c07a", shadow: "#5b4020", mid: "#c7a46b", highlight: "#fbeccb" },
   { id: "auburn", label: "Auburn", hex: "#8f2d1f", shadow: "#240b06", mid: "#7f2c18", highlight: "#cf7650" },
@@ -96,7 +126,7 @@ export function hairModelById(id) {
 }
 
 export function hairStyleById(id) {
-  return HAIR_STYLES.find((style) => style.id === id) || HAIR_STYLES[1];
+  return HAIR_STYLES.find((style) => style.id === id) || HAIR_STYLES[0];
 }
 
 export function hairColorById(id) {
@@ -118,6 +148,7 @@ export function defaultHairPlacement() {
     stretchY: 1,
     lift: 0,
     pushBack: false,
+    topScale: 1,
     fitFor: "",
   };
 }
@@ -220,9 +251,26 @@ export function facePointsFromLandmarks(landmarks) {
 const FIT_WIDTH = 0.94;
 
 /**
- * Turn face points (0..1 of the image) into a placement for one style. The
- * hairline is estimated with facial thirds: it sits one "nose-to-chin" length
- * above the brow. Returns null when the face looks unusable.
+ * Head proportions, as a share of the brow-to-chin length (landmark 9 to 152),
+ * measured on front-facing heads: the hairline sits about 0.38 above the brow and
+ * the top of the skull about 0.58 above it.
+ */
+export const HEAD = { hairline: 0.38, skull: 0.58 };
+
+/** Height may differ from width by this much (keeps the style's own shape). */
+export const FIT_ASPECT = 0.08;
+
+/** Least the hair above the hairline is squeezed down to (1 = untouched). */
+export const MIN_TOP_SCALE = 0.3;
+
+/** How much a fully squeezed dome narrows at its top, so it stays round. */
+const DOME_TAPER = 0.35;
+
+/**
+ * Turn face points (0..1 of the image) into a placement for one style. Width
+ * comes from the cheeks; height follows within ±8%; the hair above the hairline
+ * is squeezed (`topScale`) so the crown sits just above the real top of the
+ * skull instead of high above it. Returns null when the face looks unusable.
  */
 export function fitHairToFace(points, { imageW, imageH, stageW, stageH }, styleEntry) {
   if (!points || !imageW || !imageH || !stageW || !stageH) return null;
@@ -237,29 +285,71 @@ export function fitHairToFace(points, { imageW, imageH, stageW, stageH }, styleE
   const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
   const brow = at(points.brow);
   const chin = at(points.chin);
-  const lowerThird = dot(sub(chin, at(points.noseBase)), down);
+  const browChin = dot(sub(chin, brow), down);
   const faceWidth = Math.abs(dot(sub(at(points.right), at(points.left)), along));
-  if (!(lowerThird > 2) || !(faceWidth > 4)) return null;
-  const hairline = { x: brow.x - down.x * lowerThird, y: brow.y - down.y * lowerThird };
-  const faceLength = dot(sub(chin, hairline), down);
-  if (!(faceLength > 4)) return null;
-  const face = styleEntry?.face || OPENING;
-  const sy = faceLength / (face.chin - face.top);
-  const sx = (faceWidth * FIT_WIDTH) / (2 * face.halfW);
+  if (!(browChin > 4) || !(faceWidth > 4)) return null;
+  const face = { ...OPENING, ...(styleEntry?.face || {}) };
   const base = (Math.min(stageW, stageH) * 0.86) / HAIR_BASE_UNITS;
-  const scale = Math.max(0.45, Math.min(2.4, sy / base));
+  // Width: the opening spans the cheeks.
+  const sx = (faceWidth * FIT_WIDTH) / (2 * face.halfW);
+  // Height: hairline to chin, kept within ±8% of the width scale.
+  const wantY = (browChin * (1 + HEAD.hairline)) / (face.chin - face.top);
+  const sy = Math.max(sx * (1 - FIT_ASPECT), Math.min(sx * (1 + FIT_ASPECT), wantY));
+  const scale = Math.max(0.3, Math.min(3, sx / base));
   const used = scale * base;
-  const stretchX = Math.max(0.5, Math.min(1.5, sx / used));
-  const toCenter = (HAIR_FACE.cy - face.top) * used;
-  const center = { x: hairline.x + down.x * toCenter, y: hairline.y + down.y * toCenter };
+  const stretchY = Math.max(0.5, Math.min(1.5, sy / used));
+  const syUsed = used * stretchY;
+  // Center the opening between the hairline and the chin.
+  const hairlineAbove = browChin * HEAD.hairline;
+  const mid = (dot(brow, down) - hairlineAbove + dot(chin, down)) / 2;
+  const openMid = (face.top + face.chin) / 2;
+  const centerDown = mid + (HAIR_FACE.cy - openMid) * syUsed;
+  const centerAlong = dot(brow, along);
+  const center = {
+    x: along.x * centerAlong + down.x * centerDown,
+    y: along.y * centerAlong + down.y * centerDown,
+  };
+  // Crown: squeeze the hair above the opening so it tops out just over the skull.
+  const holeTopDown = centerDown + (face.top - HAIR_FACE.cy) * syUsed;
+  const crownDown = dot(brow, down) - browChin * (HEAD.skull + face.allow);
+  const wantAbove = (holeTopDown - crownDown) / syUsed; // view units from opening top to crown
+  const topScale = squeezeFor(face.top - face.crown, wantAbove);
   return {
     x: center.x / stageW,
     y: center.y / stageH,
     scale,
     rotation: (theta * 180) / Math.PI,
-    stretchX,
-    stretchY: 1,
+    stretchX: 1,
+    stretchY,
+    topScale: Math.round(topScale * 50) / 50,
   };
+}
+
+/** Band (view units) over which the squeeze eases in above the opening. */
+export const SQUEEZE_BAND = 28;
+
+/** The squeeze that brings a crown `have` units above the opening down to `want`. */
+export function squeezeFor(have, want) {
+  if (!(have > 1) || !(want < have)) return 1;
+  const band = Math.min(SQUEEZE_BAND, have);
+  const c = (want - band / 2) / (band / 2 + (have - band));
+  return Math.round(Math.max(MIN_TOP_SCALE, Math.min(1, c)) * 50) / 50;
+}
+
+/**
+ * Where a source row (image px, 0 at the top) lands after the top squeeze. Rows
+ * below the opening's top stay put; above it they are packed down by `topScale`,
+ * easing in over a soft band so strands don't kink.
+ */
+export function squeezeRow(y, topY, band, topScale) {
+  const c = Math.max(MIN_TOP_SCALE, Math.min(1, topScale));
+  if (c >= 1 || y >= topY) return y;
+  const start = topY - band;
+  if (y >= start) {
+    const t = y - start;
+    return topY - ((topY - y) * c + ((1 - c) * (band * band - t * t)) / (2 * band));
+  }
+  return topY - (band * (1 + c)) / 2 - (start - y) * c;
 }
 
 export function containRect(boxW, boxH, imageW, imageH) {
@@ -293,7 +383,7 @@ export function loadHairImage(src) {
  * fringe styles this lifts the bangs off the face. Works in image pixels.
  */
 export function pushBackOval(width, height, styleEntry) {
-  const face = styleEntry?.face || OPENING;
+  const face = { ...OPENING, ...(styleEntry?.face || {}) };
   const k = width / HAIR_VIEW_W;
   const rx = HAIR_FACE.rx * 1.02 * k;
   const top = (face.top - 12) * k;
@@ -301,19 +391,53 @@ export function pushBackOval(width, height, styleEntry) {
   return { cx: HAIR_FACE.cx * k, cy, rx, ry: cy - top, feather: 16 * k, height };
 }
 
-/** A canvas with the style painted in the color. Cached per style, color, and push-back. Browser only. */
-export async function tintedHairCanvas(styleEntry, color, { pushBack = false } = {}) {
-  const key = `${styleEntry.src}|${color.id}|${pushBack ? 1 : 0}`;
+/** Pack the hair above the opening down (see squeezeRow). Browser only. */
+function squeezeTop(source, styleEntry, topScale) {
+  const k = source.width / HAIR_VIEW_W;
+  const face = { ...OPENING, ...(styleEntry?.face || {}) };
+  const topY = face.top * k;
+  const band = Math.min(SQUEEZE_BAND, face.top - face.crown) * k;
+  const crownY = face.crown * k;
+  const cx = HAIR_FACE.cx * k;
+  const out = document.createElement("canvas");
+  out.width = source.width;
+  out.height = source.height;
+  const ctx = out.getContext("2d");
+  ctx.imageSmoothingQuality = "high";
+  const rows = Math.ceil(topY);
+  ctx.drawImage(source, 0, rows, source.width, source.height - rows, 0, rows, source.width, source.height - rows);
+  const step = 2;
+  for (let y = 0; y < rows; y += step) {
+    const y1 = Math.min(rows, y + step);
+    const d0 = squeezeRow(y, topY, band, topScale);
+    const d1 = squeezeRow(y1, topY, band, topScale);
+    // Round the dome: rows high above the opening pull in a little toward the middle.
+    const rise = Math.max(0, Math.min(1, (topY - y) / Math.max(1, topY - crownY)));
+    const narrow = 1 - (face.dome ?? DOME_TAPER) * (1 - topScale) * rise ** 1.6;
+    const w = source.width * narrow;
+    ctx.drawImage(source, 0, y, source.width, y1 - y, cx - cx * narrow, d0, w, Math.max(0.5, d1 - d0 + 0.35));
+  }
+  return out;
+}
+
+/** A canvas with the style painted in the color. Cached per style, color, push-back, and squeeze. Browser only. */
+export async function tintedHairCanvas(styleEntry, color, { pushBack = false, topScale = 1 } = {}) {
+  const squeeze = Math.max(MIN_TOP_SCALE, Math.min(1, Math.round((Number(topScale) || 1) * 50) / 50));
+  const key = `${styleEntry.src}|${color.id}|${pushBack ? 1 : 0}|${squeeze}`;
   if (tintCache.has(key)) return tintCache.get(key);
   const image = await loadHairImage(styleEntry.src);
-  const canvas = document.createElement("canvas");
+  let canvas = document.createElement("canvas");
   canvas.width = image.naturalWidth || image.width;
   canvas.height = image.naturalHeight || image.height;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  let ctx = canvas.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(image, 0, 0);
   const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
   tintHairPixels(pixels.data, hairColorLut(color));
   ctx.putImageData(pixels, 0, 0);
+  if (squeeze < 1) {
+    canvas = squeezeTop(canvas, styleEntry, squeeze);
+    ctx = canvas.getContext("2d");
+  }
   if (pushBack) {
     const oval = pushBackOval(canvas.width, canvas.height, styleEntry);
     ctx.save();

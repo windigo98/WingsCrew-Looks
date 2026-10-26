@@ -666,6 +666,8 @@ body.in-studio.sheet-open .toast {
 .hair-slider b { min-width: 2.4em; color: var(--ink); }
 .hair-slider input { width: 100%; accent-color: var(--rose); }
 .hair h3 { font-size: 15px; margin: 12px 0 8px; font-family: var(--sans); font-weight: 700; letter-spacing: 0; }
+.hair-audiences { display: flex; gap: 6px; margin-bottom: 8px; }
+.hair-audiences .chip { flex: 0 0 auto; min-width: 84px; justify-content: center; }
 .hair-groups { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .hair-groups .chip { flex: 0 0 auto; }
 .hair-tip[data-status="none"],

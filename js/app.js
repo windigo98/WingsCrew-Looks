@@ -11,11 +11,11 @@ import { clamp, escapeHtml, mapsSearchUrl, safeHttpUrl, uid } from "./util.js";
 import { buildWishlistRecord, firstChoice, wishlistToForm } from "./wishlist-model.js";
 import {
   FACE_SHAPES,
+  HAIR_AUDIENCES,
   HAIR_COLORS,
   HAIR_GROUPS,
   HAIR_LIFT_RANGE,
   HAIR_MODELS,
-  HAIR_STYLES,
   defaultHairPlacement,
   fitHairToFace,
   flattenHairCanvas,
@@ -23,9 +23,10 @@ import {
   hairFrame,
   hairModelById,
   hairStyleById,
+  hairStylesFor,
   tintedHairCanvas,
-} from "./hair.js?v=3";
-import { detectFace } from "./face-fit.js?v=1";
+} from "./hair.js?v=15";
+import { detectFace } from "./face-fit.js?v=15";
 
 const NAV = [
   ["dress", "Dress", icon("dress")],
@@ -69,6 +70,7 @@ const state = {
   studio: emptyStudio(),
   hair: defaultHairPlacement(),
   hairGroup: "",
+  hairAudience: "",
   hairFit: { status: "", note: "" },
   layout: null,
 };
@@ -1667,6 +1669,7 @@ function hairState() {
     rotation: hair.rotation,
     stretchX: hair.stretchX,
     stretchY: hair.stretchY,
+    topScale: hair.topScale ?? 1,
     lift: hair.lift || 0,
     pushBack: Boolean(hair.pushBack),
     fitFor: hair.fitFor || "",
@@ -1680,25 +1683,41 @@ function persistHair() {
   }, 180);
 }
 
-function hairGroupId(style) {
-  return state.hairGroup || style.group || HAIR_GROUPS[0].id;
+function hairAudienceId(style) {
+  const audience = state.hairAudience;
+  return HAIR_AUDIENCES.some((item) => item.id === audience) ? audience : style.for[0];
+}
+
+function hairGroupsFor(audience) {
+  const styles = hairStylesFor(audience);
+  return HAIR_GROUPS.filter((group) => styles.some((item) => item.group === group.id));
+}
+
+function hairGroupId(style, audience) {
+  const groups = hairGroupsFor(audience);
+  const wanted = state.hairGroup || (style.for.includes(audience) ? style.group : "");
+  return groups.some((item) => item.id === wanted) ? wanted : groups[0].id;
 }
 
 function hairHtml() {
   const source = hairSource();
   const style = hairStyleById(state.hair.styleId);
   const color = hairColorById(state.hair.colorId);
-  const group = hairGroupId(style);
+  const audience = hairAudienceId(style);
+  const group = hairGroupId(style, audience);
   const lift = Math.round(state.hair.lift || 0);
   const ownPhotos = state.photos.filter((item) => !item.demo);
   return `<section class="hair">
     <div class="section-head"><div><h2>Hair</h2><p class="lede">Pick a style and a color. It stays on this phone until you share.</p></div></div>
     <h3>Style</h3>
+    <div class="hair-audiences" role="tablist" aria-label="Styles for">
+      ${HAIR_AUDIENCES.map((item) => `<button type="button" class="chip ${item.id === audience ? "active" : ""}" role="tab" data-action="hair-audience" data-id="${item.id}" aria-selected="${item.id === audience}">${escapeHtml(item.label)}</button>`).join("")}
+    </div>
     <div class="hair-groups" role="tablist" aria-label="Hair length">
-      ${HAIR_GROUPS.map((item) => `<button type="button" class="chip ${item.id === group ? "active" : ""}" role="tab" data-action="hair-group" data-id="${item.id}" aria-selected="${item.id === group}">${escapeHtml(item.label)}</button>`).join("")}
+      ${hairGroupsFor(audience).map((item) => `<button type="button" class="chip ${item.id === group ? "active" : ""}" role="tab" data-action="hair-group" data-id="${item.id}" aria-selected="${item.id === group}">${escapeHtml(item.label)}</button>`).join("")}
     </div>
     <div class="scroller hair-styles" aria-label="Hairstyles">
-      ${HAIR_STYLES.filter((item) => item.group === group).map((item) => `<button type="button" class="chip ${item.id === style.id ? "active" : ""}" data-action="hair-style" data-id="${item.id}" aria-pressed="${item.id === style.id}">${escapeHtml(item.label)}</button>`).join("")}
+      ${hairStylesFor(audience).filter((item) => item.group === group).map((item) => `<button type="button" class="chip ${item.id === style.id ? "active" : ""}" data-action="hair-style" data-id="${item.id}" aria-pressed="${item.id === style.id}">${escapeHtml(item.label)}</button>`).join("")}
     </div>
     <h3>Color</h3>
     <div class="scroller hair-colors" aria-label="Hair colors">
@@ -1853,7 +1872,7 @@ function mountHairArt() {
     row.scrollLeft += offset - (row.clientWidth - chip.offsetWidth) / 2;
   }
   applyHairTransform();
-  tintedHairCanvas(style, color, { pushBack: Boolean(state.hair.pushBack) }).then((canvas) => {
+  tintedHairCanvas(style, color, { pushBack: Boolean(state.hair.pushBack), topScale: state.hair.topScale ?? 1 }).then((canvas) => {
     if (token !== hairArtToken || parseRoute().path !== "hair") return;
     const overlay = document.getElementById("hair-overlay");
     if (!overlay) return;
@@ -1906,17 +1925,20 @@ async function autoFitHair({ quiet = false, resetLift = false } = {}) {
       stageH: stage.clientHeight,
     }, style);
     const keep = { lift: resetLift ? 0 : state.hair.lift || 0, pushBack: state.hair.pushBack };
+    const prevTop = state.hair.topScale ?? 1;
     if (placement) {
       state.hair = { ...state.hair, ...placement, ...keep, fitFor: fitKey };
       setHairFitNote("Fitted to your face. Drag or use Hairline to fine-tune.", "fit");
     } else {
       const base = defaultHairPlacement();
-      state.hair = { ...state.hair, x: base.x, y: base.y, scale: base.scale, rotation: 0, stretchX: 1, stretchY: 1, ...keep, fitFor: fitKey };
+      state.hair = { ...state.hair, x: base.x, y: base.y, scale: base.scale, rotation: 0, stretchX: 1, stretchY: 1, topScale: 1, ...keep, fitFor: fitKey };
       setHairFitNote("Couldn't spot a face, so the hair is in the middle. Drag it into place, or try a front-facing photo.", "none");
       if (!quiet) showToast("No face found. Drag the hair into place.");
     }
     syncHairSliders();
     applyHairTransform();
+    // The fit may trim the crown, which needs a fresh drawing of the hair.
+    if ((state.hair.topScale ?? 1) !== prevTop) mountHairArt();
     persistHair();
     return Boolean(placement);
   } catch (error) {
@@ -1978,7 +2000,7 @@ async function saveHairLook() {
   if (!stage?.clientWidth) return;
   const style = hairStyleById(state.hair.styleId);
   const color = hairColorById(state.hair.colorId);
-  const hairCanvas = await tintedHairCanvas(style, color, { pushBack: Boolean(state.hair.pushBack) });
+  const hairCanvas = await tintedHairCanvas(style, color, { pushBack: Boolean(state.hair.pushBack), topScale: state.hair.topScale ?? 1 });
   const image = await loadImage(source.src);
   const previewBlob = await flattenHairCanvas({
     photoImage: image,
@@ -2148,6 +2170,7 @@ function openLook(id) {
       fitFor: look.hair.fitFor || "",
     };
     state.hairGroup = "";
+    state.hairAudience = "";
     state.hairFit = { status: "", note: "" };
     go("hair");
     return;
@@ -2277,8 +2300,14 @@ async function onClick(event) {
     if (action === "go") go(button.dataset.route);
     else if (action === "hair-style") {
       state.hair.styleId = button.dataset.id;
-      state.hairGroup = hairStyleById(button.dataset.id).group;
+      const picked = hairStyleById(button.dataset.id);
+      state.hairGroup = picked.group;
+      if (!picked.for.includes(state.hairAudience)) state.hairAudience = picked.for[0];
       persistHair();
+      render();
+    } else if (action === "hair-audience") {
+      state.hairAudience = button.dataset.id;
+      state.hairGroup = "";
       render();
     } else if (action === "hair-group") {
       state.hairGroup = button.dataset.id;
