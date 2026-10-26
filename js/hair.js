@@ -245,6 +245,7 @@ export const HAIR_LOOKS = {
   "oval-woman": WOMEN_LOOKS,
   "round-woman": WOMEN_LOOKS,
   "square-woman": WOMEN_LOOKS,
+  "heart-woman": WOMEN_LOOKS,
   "oval-man": MEN_LOOKS,
   "square-man": MEN_LOOKS,
   "round-man": MEN_LOOKS,
