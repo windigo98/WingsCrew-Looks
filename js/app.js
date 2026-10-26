@@ -16,10 +16,9 @@ import {
   flattenHairCanvas,
   hairColorById,
   hairFrame,
-  hairShades,
   hairStyleById,
-  loadHairSvg,
-} from "./hair.js?v=1";
+  tintedHairCanvas,
+} from "./hair.js?v=2";
 
 const NAV = [
   ["dress", "Dress", icon("dress")],
@@ -1658,13 +1657,14 @@ function hairHtml() {
   return `<section class="hair">
     <div class="section-head"><div><h2>Hair</h2><p class="lede">Pick a style and a color. It stays on this phone until you share.</p></div></div>
     <h3>Style</h3>
-    <div class="scroller" aria-label="Hairstyles">
+    <div class="scroller hair-styles" aria-label="Hairstyles">
       ${HAIR_STYLES.map((item) => `<button type="button" class="chip ${item.id === style.id ? "active" : ""}" data-action="hair-style" data-id="${item.id}" aria-pressed="${item.id === style.id}">${escapeHtml(item.label)}</button>`).join("")}
     </div>
     <h3>Color</h3>
     <div class="scroller hair-colors" aria-label="Hair colors">
       ${HAIR_COLORS.map((item) => `<button type="button" class="hair-swatch" data-action="hair-color" data-id="${item.id}" aria-pressed="${item.id === color.id}"><i style="background:${item.hex}"></i>${escapeHtml(item.label)}</button>`).join("")}
     </div>
+    <p class="hair-name" id="hair-name">${escapeHtml(style.label)} · ${escapeHtml(color.label)}</p>
     <div id="hair-stage" class="hair-stage" aria-label="Hair preview">
       ${src ? `<img class="hair-photo" alt="" src="${src}">` : `<p class="hair-empty">Add a photo, or use the sample face.</p>`}
       <div id="hair-overlay" class="hair-overlay"></div>
@@ -1773,32 +1773,33 @@ function applyHairTransform() {
   const overlay = document.getElementById("hair-overlay");
   if (!stage || !overlay) return;
   const frame = hairFrame(stage.clientWidth, stage.clientHeight, state.hair);
-  const shades = hairShades(hairColorById(state.hair.colorId).hex);
   overlay.style.width = `${frame.w}px`;
   overlay.style.height = `${frame.h}px`;
-  overlay.style.left = `${frame.cx}px`;
-  overlay.style.top = `${frame.cy}px`;
-  overlay.style.transform = `translate(-50%, -50%) rotate(${frame.rotation}deg)`;
-  overlay.style.setProperty("--hair-base", shades.base);
-  overlay.style.setProperty("--hair-dark", shades.dark);
-  overlay.style.setProperty("--hair-light", shades.light);
-  const svg = overlay.querySelector("svg");
-  if (svg) {
-    svg.style.setProperty("--hair-base", shades.base);
-    svg.style.setProperty("--hair-dark", shades.dark);
-    svg.style.setProperty("--hair-light", shades.light);
-  }
+  overlay.style.left = `${frame.left}px`;
+  overlay.style.top = `${frame.top}px`;
+  overlay.style.transformOrigin = `${frame.anchorX * 100}% ${frame.anchorY * 100}%`;
+  overlay.style.transform = `rotate(${frame.rotation}deg)`;
 }
 
 let hairArtToken = 0;
 function mountHairArt() {
   const token = ++hairArtToken;
   const style = hairStyleById(state.hair.styleId);
-  loadHairSvg(style.src).then((text) => {
+  const color = hairColorById(state.hair.colorId);
+  const name = document.getElementById("hair-name");
+  if (name) name.textContent = `${style.label} · ${color.label}`;
+  const chip = document.querySelector(".hair-styles .chip.active");
+  if (chip?.parentElement) {
+    const row = chip.parentElement;
+    const offset = chip.getBoundingClientRect().left - row.getBoundingClientRect().left;
+    row.scrollLeft += offset - (row.clientWidth - chip.offsetWidth) / 2;
+  }
+  applyHairTransform();
+  tintedHairCanvas(style, color).then((canvas) => {
     if (token !== hairArtToken || parseRoute().path !== "hair") return;
     const overlay = document.getElementById("hair-overlay");
     if (!overlay) return;
-    overlay.innerHTML = text.replace(/<\?xml[^?]*\?>\s*/, "");
+    overlay.replaceChildren(canvas);
     applyHairTransform();
   }).catch((error) => showToast(error.message || "Could not draw that hair."));
 }
@@ -1851,15 +1852,14 @@ async function saveHairLook() {
   if (!stage?.clientWidth) return;
   const style = hairStyleById(state.hair.styleId);
   const color = hairColorById(state.hair.colorId);
-  const svgText = await loadHairSvg(style.src);
+  const hairCanvas = await tintedHairCanvas(style, color);
   const url = mediaUrl(`photo:${photo.id}:${photo.revision || photo.createdAt}`, photo.blob);
   const image = await loadImage(url);
   const previewBlob = await flattenHairCanvas({
     photoImage: image,
     photoWidth: image.naturalWidth || image.width,
     photoHeight: image.naturalHeight || image.height,
-    svgText,
-    shades: hairShades(color.hex),
+    hairCanvas,
     placement: state.hair,
     stageWidth: stage.clientWidth,
     stageHeight: stage.clientHeight,
@@ -2155,7 +2155,7 @@ async function onClick(event) {
       document.querySelectorAll('[data-action="hair-color"]').forEach((swatch) => {
         swatch.setAttribute("aria-pressed", swatch.dataset.id === state.hair.colorId ? "true" : "false");
       });
-      applyHairTransform();
+      mountHairArt();
       persistHair();
     } else if (action === "hair-pose") {
       state.hair.photoId = button.dataset.id;

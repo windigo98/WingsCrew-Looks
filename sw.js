@@ -1,21 +1,21 @@
-const CACHE = "wingscrew-looks-v12";
+const CACHE = "wingscrew-looks-v13";
 
 const PRECACHE = [
   "./",
   "./index.html",
   "./manifest.json",
-  "./css/app.css?v=9",
-  "./js/app.js?v=12",
-  "./js/hair.js?v=1",
+  "./css/app.css?v=10",
+  "./js/app.js?v=13",
+  "./js/hair.js?v=2",
   "./assets/favicon.svg",
-  "./assets/hair/pixie.svg",
-  "./assets/hair/bob.svg",
-  "./assets/hair/long-straight.svg",
-  "./assets/hair/long-waves.svg",
-  "./assets/hair/curls.svg",
-  "./assets/hair/braids.svg",
-  "./assets/hair/fade.svg",
-  "./assets/hair/bun.svg",
+  "./assets/hair/pixie.webp",
+  "./assets/hair/bob.webp",
+  "./assets/hair/long-layers.webp",
+  "./assets/hair/beach-waves.webp",
+  "./assets/hair/curls.webp",
+  "./assets/hair/braids.webp",
+  "./assets/hair/high-top-fade.webp",
+  "./assets/hair/high-bun.webp",
   "./assets/hair/sample-face.svg",
 ];
 

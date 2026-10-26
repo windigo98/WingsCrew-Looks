@@ -617,7 +617,16 @@ body.in-studio.sheet-open .toast {
   position: absolute;
   pointer-events: none;
 }
-.hair-overlay svg { width: 100%; height: 100%; display: block; }
+.hair-overlay canvas,
+.hair-overlay img { width: 100%; height: 100%; display: block; }
+.hair-styles .chip { flex: 0 0 auto; white-space: nowrap; }
+.hair-name {
+  margin: 0 0 8px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ink);
+}
 .hair-tip { margin-top: 0; }
 .hair-colors { padding-bottom: 8px; }
 .hair-swatch {
