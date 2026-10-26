@@ -30,6 +30,7 @@ import {
   tintedHairCanvas,
 } from "./hair.js?v=16";
 import { detectFace, hairMask } from "./face-fit.js?v=16";
+import { mountMakeup, openMakeupLook } from "./makeup-screen.js?v=1";
 
 const NAV = [
   ["dress", "Dress", icon("dress")],
@@ -38,6 +39,7 @@ const NAV = [
   ["wishlist", "Wishlist", icon("wish")],
   ["looks", "Looks", icon("looks")],
   ["hair", "Hair", icon("hair")],
+  ["makeup", "Makeup", icon("makeup")],
 ];
 
 const FILTERS = [
@@ -120,6 +122,7 @@ function icon(name) {
     closet: `<path d="M4 8h16v12H4z"/><path d="M8 8V5h8v3M12 8v12"/>`,
     wish: `<path d="M7 3h10v18l-5-3-5 3z"/>`,
     looks: `<rect x="7" y="7" width="12" height="14" rx="2"/><path d="M9 7V4h9v5"/>`,
+    makeup: `<path d="M9 21h6M10 21V11h4v10M10.5 11l.8-6.2c.1-.9 1.3-1.2 1.8-.4l.9 1.4V11"/>`,
     hair: `<path d="M8 14c.2-4 2.2-7 4-8 1.2 2.4 2.2 2.6 4 .2 1.8 1 3.8 4 4 7.8.2 2.2-.2 4-1.4 5.4 1.2.6 1.6 2.2 1.2 3.6-1.6-.8-2-2.4-2.2-3.6-.8.8-2 1.2-3.6 1.2s-2.8-.4-3.6-1.2c-.2 1.2-.6 2.8-2.2 3.6-.4-1.4 0-3 1.2-3.6C8.2 18 7.8 16.2 8 14z"/>`,
   };
   return `<svg ${common}>${paths[name]}</svg>`;
@@ -143,7 +146,7 @@ function storeAnchor(url, label, className) {
 function parseRoute() {
   const raw = (location.hash || "#dress").replace(/^#\/?/, "");
   const [path, id] = raw.split("/");
-  if (!["dress", "photos", "closet", "wishlist", "looks", "hair", "vote", "friends", "invite", "parent", "shared", "v"].includes(path)) return { path: "dress", id: "" };
+  if (!["dress", "photos", "closet", "wishlist", "looks", "hair", "makeup", "vote", "friends", "invite", "parent", "shared", "v"].includes(path)) return { path: "dress", id: "" };
   return { path, id: id || "" };
 }
 
@@ -460,6 +463,7 @@ function render() {
   else if (route.path === "friends") view.innerHTML = friendsHtml();
   else if (route.path === "invite") view.innerHTML = inviteHtml(route.id);
   else if (route.path === "shared") view.innerHTML = sharedHtml(route.id);
+  else if (route.path === "makeup") mountMakeup(view, makeupContext()).catch((error) => showToast(error.message || "Could not open makeup."));
   else if (route.path === "hair") {
     pickDefaultHairPhoto();
     view.innerHTML = hairHtml();
@@ -2256,9 +2260,26 @@ async function deleteMyPhotos() {
   });
 }
 
+/** What the Makeup tab (js/makeup-screen.js) needs from the app. */
+function makeupContext() {
+  return {
+    getPhotos: () => state.photos,
+    getHair: () => state.hair,
+    getProfile: () => state.profile,
+    mediaUrl,
+    showToast,
+    reload,
+    footerHtml,
+  };
+}
+
 function openLook(id) {
   const look = state.looks.find((item) => item.id === id);
   if (!look) return;
+  if (look.makeup) {
+    openMakeupLook(look).then(() => go("makeup"));
+    return;
+  }
   if (look.hair?.styleId) {
     state.hair = {
       ...defaultHairPlacement(),
