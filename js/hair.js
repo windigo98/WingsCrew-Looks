@@ -151,7 +151,7 @@ function hash01(n) {
 export function finishAmount(finish, u, v) {
   if (finish === "balayage") {
     const band = 0.8 + 0.2 * streak(u, 14);
-    return { light: smooth(0.3, 0.95, v) * 0.72 * band, dark: 0 };
+    return { light: smooth(0.22, 0.9, v) * 0.85 * band, dark: 0 };
   }
   if (finish === "highlights") {
     return { light: streak(u, 38) * 0.62 * smooth(0.02, 0.12, v), dark: 0 };
@@ -244,6 +244,7 @@ const MEN_LOOKS = ["crop", "buzz", "taper", "comma", "twoblock", "softwolf", "mu
 export const HAIR_LOOKS = {
   "oval-woman": WOMEN_LOOKS,
   "round-woman": WOMEN_LOOKS,
+  "square-woman": WOMEN_LOOKS,
   "oval-man": MEN_LOOKS,
   "square-man": MEN_LOOKS,
 };
