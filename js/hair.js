@@ -14,15 +14,43 @@ export const HAIR_FACE = { cx: 280, cy: 250, rx: 78, ry: 96 };
 /** View units that span the base frame width (keeps face size from earlier builds). */
 const HAIR_BASE_UNITS = 400;
 
+/** Shared face opening, in view units: hairline, chin, and half the cheek width. */
+const OPENING = { top: 154, chin: 346, halfW: 78 };
+
+export const HAIR_GROUPS = [
+  { id: "short", label: "Short" },
+  { id: "medium", label: "Medium" },
+  { id: "long", label: "Long" },
+  { id: "textured", label: "Textured" },
+];
+
+function style(id, label, file, group, extra = {}) {
+  const { face, ...rest } = extra;
+  return { id, label, src: `assets/hair/${file}.webp`, group, bangs: false, ...rest, face: { ...OPENING, ...(face || {}) } };
+}
+
+/**
+ * `face` says where the face opening sits in each image (view units): `top` is the
+ * hairline, `chin` the chin, `halfW` half the cheek width. Auto-fit maps these to
+ * the detected face. `bangs` styles have a fringe that covers the upper forehead.
+ */
 export const HAIR_STYLES = [
-  { id: "pixie", label: "Textured Pixie", src: "assets/hair/pixie.webp" },
-  { id: "bob", label: "Chin-Length Blunt Bob", src: "assets/hair/bob.webp" },
-  { id: "straight", label: "Long Sleek Layers", src: "assets/hair/long-layers.webp" },
-  { id: "waves", label: "Beach Waves", src: "assets/hair/beach-waves.webp" },
-  { id: "curls", label: "Defined Curls", src: "assets/hair/curls.webp" },
-  { id: "braids", label: "Knotless Box Braids", src: "assets/hair/braids.webp" },
-  { id: "fade", label: "High-Top Fade", src: "assets/hair/high-top-fade.webp" },
-  { id: "bun", label: "Sleek High Bun", src: "assets/hair/high-bun.webp" },
+  style("pixie", "Textured Pixie", "pixie", "short", { bangs: true }),
+  style("taper", "Classic Taper", "taper", "short", { face: { top: 138 } }),
+  style("crop", "Textured Crop / Buzz Cut", "crop", "short", { bangs: true, face: { top: 140, halfW: 84 } }),
+  style("fade", "High-Top Fade", "high-top-fade", "short", { face: { top: 138 } }),
+  style("bob", "Chin-Length Blunt Bob", "bob", "medium"),
+  style("lob", "Collarbone Lob", "lob", "medium"),
+  style("shag", "Curtain Bangs Shag", "shag", "medium", { bangs: true }),
+  style("wolf", "Wolf Cut", "wolf", "medium", { bangs: true }),
+  style("straight", "Long Sleek Layers", "long-layers", "long"),
+  style("waves", "Beach Waves", "beach-waves", "long"),
+  style("silk", "Silk Press", "silk-press", "long"),
+  style("bun", "Sleek High Bun", "high-bun", "long"),
+  style("curls", "Defined Curls", "curls", "textured"),
+  style("afro", "Natural Afro", "afro", "textured"),
+  style("braids", "Knotless Box Braids", "braids", "textured"),
+  style("locs", "Starter Locs / Shoulder Locs", "locs", "textured"),
 ];
 
 /**
@@ -38,6 +66,35 @@ export const HAIR_COLORS = [
   { id: "pink", label: "Pink", hex: "#e56aa6", shadow: "#3d1024", mid: "#c95b8c", highlight: "#fbc3da" },
 ];
 
+/** Face shapes, in the order the model picker shows them. */
+export const FACE_SHAPES = [
+  { id: "oval", label: "Oval" },
+  { id: "round", label: "Round" },
+  { id: "square", label: "Square" },
+  { id: "heart", label: "Heart" },
+  { id: "long", label: "Long (Oblong)" },
+  { id: "diamond", label: "Diamond" },
+];
+
+/**
+ * Practice models: AI-made, fictional people (not real, not look-alikes), one
+ * woman and one man per face shape. Same size and framing, hair out of the way.
+ */
+export const HAIR_MODELS = FACE_SHAPES.flatMap((shape) =>
+  [["woman", "Woman"], ["man", "Man"]].map(([who, whoLabel]) => ({
+    id: `${shape.id}-${who}`,
+    shape: shape.id,
+    shapeLabel: shape.label,
+    who: whoLabel,
+    label: `${shape.label} face · ${whoLabel}`,
+    src: `assets/models/${shape.id}-${who}.webp`,
+  })),
+);
+
+export function hairModelById(id) {
+  return HAIR_MODELS.find((model) => model.id === id) || null;
+}
+
 export function hairStyleById(id) {
   return HAIR_STYLES.find((style) => style.id === id) || HAIR_STYLES[1];
 }
@@ -50,6 +107,7 @@ export function hairColorById(id) {
 export function defaultHairPlacement() {
   return {
     photoId: null,
+    modelId: null,
     styleId: "bob",
     colorId: "black",
     x: 0.5,
@@ -58,8 +116,14 @@ export function defaultHairPlacement() {
     rotation: 0,
     stretchX: 1,
     stretchY: 1,
+    lift: 0,
+    pushBack: false,
+    fitFor: "",
   };
 }
+
+/** Hairline slider range, in view units (positive moves the hair down). */
+export const HAIR_LIFT_RANGE = 36;
 
 export function hexToRgb(hex) {
   const h = String(hex || "").replace("#", "").trim();
@@ -111,8 +175,11 @@ export function hairFrame(stageW, stageH, placement = {}) {
   const h = HAIR_VIEW_H * unit * stretchY;
   const anchorX = HAIR_FACE.cx / HAIR_VIEW_W;
   const anchorY = HAIR_FACE.cy / HAIR_VIEW_H;
-  const cx = (Number(placement.x) || 0) * stageW;
-  const cy = (Number(placement.y) || 0) * stageH;
+  const rotation = Number(placement.rotation) || 0;
+  const lift = Math.max(-HAIR_LIFT_RANGE, Math.min(HAIR_LIFT_RANGE, Number(placement.lift) || 0)) * unit * stretchY;
+  const rad = (rotation * Math.PI) / 180;
+  const cx = (Number(placement.x) || 0) * stageW - Math.sin(rad) * lift;
+  const cy = (Number(placement.y) || 0) * stageH + Math.cos(rad) * lift;
   return {
     w,
     h,
@@ -122,7 +189,76 @@ export function hairFrame(stageW, stageH, placement = {}) {
     anchorY,
     left: cx - anchorX * w,
     top: cy - anchorY * h,
-    rotation: Number(placement.rotation) || 0,
+    rotation,
+  };
+}
+
+/** MediaPipe Face Mesh points used for fitting. */
+export const FACE_POINTS = {
+  brow: 9,
+  noseBase: 2,
+  chin: 152,
+  left: 234,
+  right: 454,
+  eyeLeft: 33,
+  eyeRight: 263,
+};
+
+/** Pick the fitting points out of a full landmark list ({x, y} in 0..1 of the image). */
+export function facePointsFromLandmarks(landmarks) {
+  if (!Array.isArray(landmarks) || landmarks.length < 468) return null;
+  const out = {};
+  for (const [name, index] of Object.entries(FACE_POINTS)) {
+    const point = landmarks[index];
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+    out[name] = { x: point.x, y: point.y };
+  }
+  return out;
+}
+
+/** How wide the cheek opening is compared with the 234–454 landmark span. */
+const FIT_WIDTH = 0.94;
+
+/**
+ * Turn face points (0..1 of the image) into a placement for one style. The
+ * hairline is estimated with facial thirds: it sits one "nose-to-chin" length
+ * above the brow. Returns null when the face looks unusable.
+ */
+export function fitHairToFace(points, { imageW, imageH, stageW, stageH }, styleEntry) {
+  if (!points || !imageW || !imageH || !stageW || !stageH) return null;
+  const fitted = containRect(stageW, stageH, imageW, imageH);
+  const at = (p) => ({ x: fitted.x + p.x * fitted.w, y: fitted.y + p.y * fitted.h });
+  const eyeL = at(points.eyeLeft);
+  const eyeR = at(points.eyeRight);
+  const theta = Math.atan2(eyeR.y - eyeL.y, eyeR.x - eyeL.x);
+  const along = { x: Math.cos(theta), y: Math.sin(theta) };
+  const down = { x: -Math.sin(theta), y: Math.cos(theta) };
+  const dot = (a, b) => a.x * b.x + a.y * b.y;
+  const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
+  const brow = at(points.brow);
+  const chin = at(points.chin);
+  const lowerThird = dot(sub(chin, at(points.noseBase)), down);
+  const faceWidth = Math.abs(dot(sub(at(points.right), at(points.left)), along));
+  if (!(lowerThird > 2) || !(faceWidth > 4)) return null;
+  const hairline = { x: brow.x - down.x * lowerThird, y: brow.y - down.y * lowerThird };
+  const faceLength = dot(sub(chin, hairline), down);
+  if (!(faceLength > 4)) return null;
+  const face = styleEntry?.face || OPENING;
+  const sy = faceLength / (face.chin - face.top);
+  const sx = (faceWidth * FIT_WIDTH) / (2 * face.halfW);
+  const base = (Math.min(stageW, stageH) * 0.86) / HAIR_BASE_UNITS;
+  const scale = Math.max(0.45, Math.min(2.4, sy / base));
+  const used = scale * base;
+  const stretchX = Math.max(0.5, Math.min(1.5, sx / used));
+  const toCenter = (HAIR_FACE.cy - face.top) * used;
+  const center = { x: hairline.x + down.x * toCenter, y: hairline.y + down.y * toCenter };
+  return {
+    x: center.x / stageW,
+    y: center.y / stageH,
+    scale,
+    rotation: (theta * 180) / Math.PI,
+    stretchX,
+    stretchY: 1,
   };
 }
 
@@ -152,11 +288,24 @@ export function loadHairImage(src) {
   return promise;
 }
 
-/** A canvas with the style painted in the color. Cached per style and color. Browser only. */
-export async function tintedHairCanvas(style, color) {
-  const key = `${style.src}|${color.id}`;
+/**
+ * Clear a soft oval over the forehead so the hairline sits further back. For
+ * fringe styles this lifts the bangs off the face. Works in image pixels.
+ */
+export function pushBackOval(width, height, styleEntry) {
+  const face = styleEntry?.face || OPENING;
+  const k = width / HAIR_VIEW_W;
+  const rx = HAIR_FACE.rx * 1.02 * k;
+  const top = (face.top - 12) * k;
+  const cy = HAIR_FACE.cy * k;
+  return { cx: HAIR_FACE.cx * k, cy, rx, ry: cy - top, feather: 16 * k, height };
+}
+
+/** A canvas with the style painted in the color. Cached per style, color, and push-back. Browser only. */
+export async function tintedHairCanvas(styleEntry, color, { pushBack = false } = {}) {
+  const key = `${styleEntry.src}|${color.id}|${pushBack ? 1 : 0}`;
   if (tintCache.has(key)) return tintCache.get(key);
-  const image = await loadHairImage(style.src);
+  const image = await loadHairImage(styleEntry.src);
   const canvas = document.createElement("canvas");
   canvas.width = image.naturalWidth || image.width;
   canvas.height = image.naturalHeight || image.height;
@@ -165,6 +314,25 @@ export async function tintedHairCanvas(style, color) {
   const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
   tintHairPixels(pixels.data, hairColorLut(color));
   ctx.putImageData(pixels, 0, 0);
+  if (pushBack) {
+    const oval = pushBackOval(canvas.width, canvas.height, styleEntry);
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    ctx.rect(0, 0, canvas.width, oval.cy);
+    ctx.clip();
+    ctx.translate(oval.cx, oval.cy);
+    ctx.scale(1, oval.ry / oval.rx);
+    const inner = Math.max(1, oval.rx - oval.feather);
+    const gradient = ctx.createRadialGradient(0, 0, inner, 0, 0, oval.rx + oval.feather * 0.4);
+    gradient.addColorStop(0, "rgba(0,0,0,1)");
+    gradient.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(0, 0, oval.rx + oval.feather, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
   canvas.className = "hair-art";
   if (tintCache.size > 24) tintCache.delete(tintCache.keys().next().value);
   tintCache.set(key, canvas);

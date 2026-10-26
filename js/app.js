@@ -10,15 +10,22 @@ import { ageBand, ageOn, emptyCircle, isTeen, profileFromBirthdate } from "./saf
 import { clamp, escapeHtml, mapsSearchUrl, safeHttpUrl, uid } from "./util.js";
 import { buildWishlistRecord, firstChoice, wishlistToForm } from "./wishlist-model.js";
 import {
+  FACE_SHAPES,
   HAIR_COLORS,
+  HAIR_GROUPS,
+  HAIR_LIFT_RANGE,
+  HAIR_MODELS,
   HAIR_STYLES,
   defaultHairPlacement,
+  fitHairToFace,
   flattenHairCanvas,
   hairColorById,
   hairFrame,
+  hairModelById,
   hairStyleById,
   tintedHairCanvas,
-} from "./hair.js?v=2";
+} from "./hair.js?v=3";
+import { detectFace } from "./face-fit.js?v=1";
 
 const NAV = [
   ["dress", "Dress", icon("dress")],
@@ -61,6 +68,8 @@ const state = {
   compare: false,
   studio: emptyStudio(),
   hair: defaultHairPlacement(),
+  hairGroup: "",
+  hairFit: { status: "", note: "" },
   layout: null,
 };
 
@@ -1619,46 +1628,77 @@ function openWishSheet(source) {
 }
 
 function hairPhoto() {
+  if (state.hair.modelId) return null;
   return state.photos.find((photo) => photo.id === state.hair.photoId) || null;
 }
 
+/** What the hair sits on: one of your photos, or a practice model. */
+function hairSource() {
+  const model = state.hair.modelId ? hairModelById(state.hair.modelId) : null;
+  if (model) return { kind: "model", id: model.id, src: model.src, key: `model:${model.id}`, label: model.label };
+  const photo = hairPhoto();
+  if (!photo) return null;
+  const key = `photo:${photo.id}:${photo.revision || photo.createdAt}`;
+  return { kind: "photo", id: photo.id, src: mediaUrl(key, photo.blob), key, label: photo.name };
+}
+
 function pickDefaultHairPhoto() {
-  if (hairPhoto()) return;
+  if (hairSource()) return;
   const face = state.photos.find((photo) => photo.slot === "face" && !photo.demo)
-    || state.photos.find((photo) => photo.slot === "demo-face")
-    || state.photos.find((photo) => photo.slot === "sample-face")
-    || state.photos[0];
-  if (face) state.hair.photoId = face.id;
+    || state.photos.find((photo) => !photo.demo);
+  if (face) {
+    state.hair.photoId = face.id;
+    state.hair.modelId = null;
+  } else {
+    state.hair.modelId = HAIR_MODELS[0].id;
+  }
+}
+
+function hairState() {
+  const hair = state.hair;
+  return {
+    photoId: hair.modelId ? null : hair.photoId,
+    modelId: hair.modelId || null,
+    styleId: hair.styleId,
+    colorId: hair.colorId,
+    x: hair.x,
+    y: hair.y,
+    scale: hair.scale,
+    rotation: hair.rotation,
+    stretchX: hair.stretchX,
+    stretchY: hair.stretchY,
+    lift: hair.lift || 0,
+    pushBack: Boolean(hair.pushBack),
+    fitFor: hair.fitFor || "",
+  };
 }
 
 function persistHair() {
   clearTimeout(hairTimer);
   hairTimer = setTimeout(() => {
-    const hair = state.hair;
-    db.setMeta("hair", {
-      photoId: hair.photoId,
-      styleId: hair.styleId,
-      colorId: hair.colorId,
-      x: hair.x,
-      y: hair.y,
-      scale: hair.scale,
-      rotation: hair.rotation,
-      stretchX: hair.stretchX,
-      stretchY: hair.stretchY,
-    }).catch(() => {});
+    db.setMeta("hair", hairState()).catch(() => {});
   }, 180);
 }
 
+function hairGroupId(style) {
+  return state.hairGroup || style.group || HAIR_GROUPS[0].id;
+}
+
 function hairHtml() {
-  const photo = hairPhoto();
+  const source = hairSource();
   const style = hairStyleById(state.hair.styleId);
   const color = hairColorById(state.hair.colorId);
-  const src = photo ? mediaUrl(`photo:${photo.id}:${photo.revision || photo.createdAt}`, photo.blob) : "";
+  const group = hairGroupId(style);
+  const lift = Math.round(state.hair.lift || 0);
+  const ownPhotos = state.photos.filter((item) => !item.demo);
   return `<section class="hair">
     <div class="section-head"><div><h2>Hair</h2><p class="lede">Pick a style and a color. It stays on this phone until you share.</p></div></div>
     <h3>Style</h3>
+    <div class="hair-groups" role="tablist" aria-label="Hair length">
+      ${HAIR_GROUPS.map((item) => `<button type="button" class="chip ${item.id === group ? "active" : ""}" role="tab" data-action="hair-group" data-id="${item.id}" aria-selected="${item.id === group}">${escapeHtml(item.label)}</button>`).join("")}
+    </div>
     <div class="scroller hair-styles" aria-label="Hairstyles">
-      ${HAIR_STYLES.map((item) => `<button type="button" class="chip ${item.id === style.id ? "active" : ""}" data-action="hair-style" data-id="${item.id}" aria-pressed="${item.id === style.id}">${escapeHtml(item.label)}</button>`).join("")}
+      ${HAIR_STYLES.filter((item) => item.group === group).map((item) => `<button type="button" class="chip ${item.id === style.id ? "active" : ""}" data-action="hair-style" data-id="${item.id}" aria-pressed="${item.id === style.id}">${escapeHtml(item.label)}</button>`).join("")}
     </div>
     <h3>Color</h3>
     <div class="scroller hair-colors" aria-label="Hair colors">
@@ -1666,10 +1706,14 @@ function hairHtml() {
     </div>
     <p class="hair-name" id="hair-name">${escapeHtml(style.label)} · ${escapeHtml(color.label)}</p>
     <div id="hair-stage" class="hair-stage" aria-label="Hair preview">
-      ${src ? `<img class="hair-photo" alt="" src="${src}">` : `<p class="hair-empty">Add a photo, or use the sample face.</p>`}
+      ${source ? `<img class="hair-photo" id="hair-photo" alt="" src="${escapeHtml(source.src)}">` : `<p class="hair-empty">Add a photo, or pick a model.</p>`}
       <div id="hair-overlay" class="hair-overlay"></div>
     </div>
-    <p class="hint hair-tip">Line the hairline up with the forehead.</p>
+    <p class="hint hair-tip" id="hair-fit-note" aria-live="polite">${escapeHtml(state.hairFit.note || "Drag to move. Pinch to size and turn.")}</p>
+    <div class="row hair-fit-row">
+      <button type="button" class="btn small" data-action="hair-fit" ${source ? "" : "disabled"}>Fit to face</button>
+      <button type="button" class="btn ghost small hair-toggle" data-action="hair-pushback" aria-pressed="${state.hair.pushBack ? "true" : "false"}">${style.bangs ? "Push bangs back" : "Push hair back"}</button>
+    </div>
     <div class="row">
       <button type="button" class="btn ghost small" data-action="hair-nudge" data-what="size" data-dir="-1">Size −</button>
       <button type="button" class="btn ghost small" data-action="hair-nudge" data-what="size" data-dir="1">Size +</button>
@@ -1677,22 +1721,35 @@ function hairHtml() {
       <button type="button" class="btn ghost small" data-action="hair-nudge" data-what="turn" data-dir="1">Rotate +</button>
       <button type="button" class="btn ghost small" data-action="hair-reset">Reset</button>
     </div>
+    <label class="hair-slider">Hairline <b>${lift > 0 ? `+${lift}` : lift}</b>
+      <input type="range" min="${-HAIR_LIFT_RANGE}" max="${HAIR_LIFT_RANGE}" step="1" value="${lift}" data-action="hair-lift" aria-label="Hairline up or down">
+    </label>
     <label class="hair-slider">Width <b>${Math.round(state.hair.stretchX * 100)}</b>
-      <input type="range" min="70" max="140" step="1" value="${Math.round(state.hair.stretchX * 100)}" data-action="hair-width" aria-label="Width">
+      <input type="range" min="50" max="150" step="1" value="${Math.round(state.hair.stretchX * 100)}" data-action="hair-width" aria-label="Width">
     </label>
     <label class="hair-slider">Height <b>${Math.round(state.hair.stretchY * 100)}</b>
-      <input type="range" min="70" max="140" step="1" value="${Math.round(state.hair.stretchY * 100)}" data-action="hair-height" aria-label="Height">
+      <input type="range" min="50" max="150" step="1" value="${Math.round(state.hair.stretchY * 100)}" data-action="hair-height" aria-label="Height">
     </label>
-    <p class="hint">Stretch the width and height for a round, oval, long, square, or heart-shaped face.</p>
-    <div class="scroller" aria-label="Photos">
-      ${state.photos.map((item) => `<button type="button" class="pose-btn ${item.id === state.hair.photoId ? "active" : ""}" data-action="hair-pose" data-id="${item.id}"><img alt="" src="${mediaUrl(`photo:${item.id}:${item.revision || item.createdAt}`, item.blob)}">${escapeHtml(item.name)}</button>`).join("")}
+    <p class="hint">Hairline moves the hair up or down. Width and height fine-tune it for your face shape.</p>
+    <h3>Pick a model</h3>
+    <p class="hint hair-model-note">Made-up people, not real ones. Grouped by face shape.</p>
+    <div class="scroller hair-models" aria-label="Models by face shape">
+      ${FACE_SHAPES.map((shape) => `<div class="hair-model-group" role="group" aria-label="${escapeHtml(shape.label)} face">
+        <span class="hair-model-shape">${escapeHtml(shape.label)}</span>
+        <div class="hair-model-pair">
+          ${HAIR_MODELS.filter((model) => model.shape === shape.id).map((model) => `<button type="button" class="pose-btn hair-model ${model.id === state.hair.modelId ? "active" : ""}" data-action="hair-model" data-id="${model.id}" aria-pressed="${model.id === state.hair.modelId}" aria-label="${escapeHtml(model.label)}"><img alt="" loading="lazy" src="${model.src}">${escapeHtml(model.who)}</button>`).join("")}
+        </div>
+      </div>`).join("")}
     </div>
+    <h3>Your photos</h3>
+    ${ownPhotos.length ? `<div class="scroller" aria-label="Photos">
+      ${ownPhotos.map((item) => `<button type="button" class="pose-btn ${!state.hair.modelId && item.id === state.hair.photoId ? "active" : ""}" data-action="hair-pose" data-id="${item.id}"><img alt="" src="${mediaUrl(`photo:${item.id}:${item.revision || item.createdAt}`, item.blob)}">${escapeHtml(item.name)}</button>`).join("")}
+    </div>` : `<p class="hint">Use a front-facing photo with your hair pulled back for the best fit.</p>`}
     <div class="row" style="margin-top:10px">
       <button type="button" class="btn small" data-action="hair-camera">Take photo</button>
       <button type="button" class="btn ghost small" data-action="hair-upload">Upload</button>
-      <button type="button" class="btn ghost small" data-action="hair-sample">Use a sample face</button>
     </div>
-    <button type="button" class="btn full" data-action="hair-save" style="margin-top:12px" ${photo ? "" : "disabled"}>Save</button>
+    <button type="button" class="btn full" data-action="hair-save" style="margin-top:12px" ${source ? "" : "disabled"}>Save</button>
     ${footerHtml()}
   </section>`;
 }
@@ -1788,20 +1845,102 @@ function mountHairArt() {
   const color = hairColorById(state.hair.colorId);
   const name = document.getElementById("hair-name");
   if (name) name.textContent = `${style.label} · ${color.label}`;
-  const chip = document.querySelector(".hair-styles .chip.active");
-  if (chip?.parentElement) {
-    const row = chip.parentElement;
+  for (const selector of [".hair-styles .chip.active", ".hair-models .hair-model.active"]) {
+    const chip = document.querySelector(selector);
+    const row = chip?.closest(".scroller");
+    if (!chip || !row) continue;
     const offset = chip.getBoundingClientRect().left - row.getBoundingClientRect().left;
     row.scrollLeft += offset - (row.clientWidth - chip.offsetWidth) / 2;
   }
   applyHairTransform();
-  tintedHairCanvas(style, color).then((canvas) => {
+  tintedHairCanvas(style, color, { pushBack: Boolean(state.hair.pushBack) }).then((canvas) => {
     if (token !== hairArtToken || parseRoute().path !== "hair") return;
     const overlay = document.getElementById("hair-overlay");
     if (!overlay) return;
     overlay.replaceChildren(canvas);
     applyHairTransform();
   }).catch((error) => showToast(error.message || "Could not draw that hair."));
+  const source = hairSource();
+  if (source && state.hair.fitFor !== `${source.key}|${style.id}`) autoFitHair({ quiet: true });
+}
+
+function setHairFitNote(note, status = "") {
+  state.hairFit = { status, note };
+  const el = document.getElementById("hair-fit-note");
+  if (el) {
+    el.textContent = note || "Drag to move. Pinch to size and turn.";
+    el.dataset.status = status;
+  }
+}
+
+function waitForImage(img) {
+  if (img.complete && img.naturalWidth) return Promise.resolve(img);
+  return new Promise((resolve, reject) => {
+    img.addEventListener("load", () => resolve(img), { once: true });
+    img.addEventListener("error", () => reject(new Error("Could not load that photo.")), { once: true });
+  });
+}
+
+let hairFitToken = 0;
+/**
+ * Find the face on the current photo or model and place the hair on it. Runs on
+ * this device with the bundled face model; nothing is uploaded.
+ */
+async function autoFitHair({ quiet = false, resetLift = false } = {}) {
+  const source = hairSource();
+  const img = document.getElementById("hair-photo");
+  const stage = document.getElementById("hair-stage");
+  if (!source || !img || !stage?.clientWidth) return false;
+  const token = ++hairFitToken;
+  const style = hairStyleById(state.hair.styleId);
+  const fitKey = `${source.key}|${style.id}`;
+  setHairFitNote("Finding the face…", "busy");
+  try {
+    await waitForImage(img);
+    const face = await detectFace(img, source.key);
+    if (token !== hairFitToken || parseRoute().path !== "hair") return false;
+    const placement = face && fitHairToFace(face.points, {
+      imageW: face.imageW,
+      imageH: face.imageH,
+      stageW: stage.clientWidth,
+      stageH: stage.clientHeight,
+    }, style);
+    const keep = { lift: resetLift ? 0 : state.hair.lift || 0, pushBack: state.hair.pushBack };
+    if (placement) {
+      state.hair = { ...state.hair, ...placement, ...keep, fitFor: fitKey };
+      setHairFitNote("Fitted to your face. Drag or use Hairline to fine-tune.", "fit");
+    } else {
+      const base = defaultHairPlacement();
+      state.hair = { ...state.hair, x: base.x, y: base.y, scale: base.scale, rotation: 0, stretchX: 1, stretchY: 1, ...keep, fitFor: fitKey };
+      setHairFitNote("Couldn't spot a face, so the hair is in the middle. Drag it into place, or try a front-facing photo.", "none");
+      if (!quiet) showToast("No face found. Drag the hair into place.");
+    }
+    syncHairSliders();
+    applyHairTransform();
+    persistHair();
+    return Boolean(placement);
+  } catch (error) {
+    if (token !== hairFitToken) return false;
+    state.hair.fitFor = fitKey;
+    setHairFitNote("Auto-fit isn't available here. Drag the hair into place.", "error");
+    if (!quiet) showToast(error.message || "Could not fit the hair.");
+    return false;
+  }
+}
+
+function syncHairSliders() {
+  const values = {
+    "hair-lift": Math.round(state.hair.lift || 0),
+    "hair-width": Math.round(state.hair.stretchX * 100),
+    "hair-height": Math.round(state.hair.stretchY * 100),
+  };
+  for (const [action, value] of Object.entries(values)) {
+    const input = document.querySelector(`input[data-action="${action}"]`);
+    if (!input) continue;
+    input.value = String(value);
+    const label = input.closest("label")?.querySelector("b");
+    if (label) label.textContent = action === "hair-lift" && value > 0 ? `+${value}` : String(value);
+  }
 }
 
 function nudgeHair(what, dir) {
@@ -1812,49 +1951,35 @@ function nudgeHair(what, dir) {
 }
 
 function resetHairPlacement() {
-  const { photoId, styleId, colorId } = state.hair;
-  state.hair = { ...defaultHairPlacement(), photoId, styleId, colorId };
+  const { photoId, modelId, styleId, colorId, fitFor } = state.hair;
+  state.hair = { ...defaultHairPlacement(), photoId, modelId, styleId, colorId, fitFor };
+  setHairFitNote("");
   persistHair();
   render();
 }
 
-async function useSampleFace() {
-  const response = await fetch("assets/hair/sample-face.svg");
-  if (!response.ok) throw new Error("Could not load the sample face.");
-  const blob = await response.blob();
-  const [base] = await providers.avatar.createBases({ blob, label: "Sample face" });
-  const existing = state.photos.find((photo) => photo.slot === "sample-face");
-  const photo = {
-    id: existing?.id || uid("photo"),
-    slot: "sample-face",
-    name: "Sample face",
-    demo: true,
-    blob: base.blob,
-    createdAt: existing?.createdAt || Date.now(),
-    revision: Date.now(),
-  };
-  await db.putPhoto(photo);
-  visuals.delete(`photo:${photo.id}`);
-  state.hair.photoId = photo.id;
-  await reload();
+function useHairModel(id) {
+  const model = hairModelById(id);
+  if (!model) return;
+  state.hair.modelId = model.id;
+  state.hair.fitFor = "";
   persistHair();
-  if (parseRoute().path === "hair") render();
-  else go("hair");
+  render();
 }
 
 async function saveHairLook() {
-  const photo = hairPhoto();
-  if (!photo) {
-    showToast("Add a photo first.");
+  const source = hairSource();
+  if (!source) {
+    showToast("Add a photo or pick a model first.");
     return;
   }
+  const photo = hairPhoto();
   const stage = document.getElementById("hair-stage");
   if (!stage?.clientWidth) return;
   const style = hairStyleById(state.hair.styleId);
   const color = hairColorById(state.hair.colorId);
-  const hairCanvas = await tintedHairCanvas(style, color);
-  const url = mediaUrl(`photo:${photo.id}:${photo.revision || photo.createdAt}`, photo.blob);
-  const image = await loadImage(url);
+  const hairCanvas = await tintedHairCanvas(style, color, { pushBack: Boolean(state.hair.pushBack) });
+  const image = await loadImage(source.src);
   const previewBlob = await flattenHairCanvas({
     photoImage: image,
     photoWidth: image.naturalWidth || image.width,
@@ -1868,24 +1993,14 @@ async function saveHairLook() {
     id: uid("look"),
     name: `${style.label} · ${color.label}`,
     occasion: "everyday",
-    photoId: photo.id,
+    photoId: photo ? photo.id : null,
     makeupId: "none",
     strength: 0.85,
     layers: [],
     placementVersion: PLACEMENT_VERSION,
     sharing: isTeen(state.profile) ? { mode: "private", audience: "approved-friends" } : { mode: "private" },
     previewBlob,
-    hair: {
-      photoId: photo.id,
-      styleId: style.id,
-      colorId: color.id,
-      x: state.hair.x,
-      y: state.hair.y,
-      scale: state.hair.scale,
-      rotation: state.hair.rotation,
-      stretchX: state.hair.stretchX,
-      stretchY: state.hair.stretchY,
-    },
+    hair: { ...hairState(), styleId: style.id, colorId: color.id },
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
@@ -1935,6 +2050,8 @@ async function addUserPhoto(file, current) {
   await reload();
   if (current.forHair) {
     state.hair.photoId = photo.id;
+    state.hair.modelId = null;
+    state.hair.fitFor = "";
     persistHair();
     showToast("Photo saved on this device");
     if (parseRoute().path === "hair") render();
@@ -2027,7 +2144,11 @@ function openLook(id) {
       ...defaultHairPlacement(),
       ...look.hair,
       photoId: look.photoId || look.hair.photoId || null,
+      modelId: look.hair.modelId || null,
+      fitFor: look.hair.fitFor || "",
     };
+    state.hairGroup = "";
+    state.hairFit = { status: "", note: "" };
     go("hair");
     return;
   }
@@ -2102,8 +2223,16 @@ function onInput(event) {
     markDirty();
     paintStudio();
   }
+  if (action === "hair-lift") {
+    const value = clamp(Math.round(Number(event.target.value) || 0), -HAIR_LIFT_RANGE, HAIR_LIFT_RANGE);
+    state.hair.lift = value;
+    const label = event.target.closest("label")?.querySelector("b");
+    if (label) label.textContent = value > 0 ? `+${value}` : String(value);
+    applyHairTransform();
+    persistHair();
+  }
   if (action === "hair-width" || action === "hair-height") {
-    const value = clamp(Number(event.target.value) / 100, 0.7, 1.4);
+    const value = clamp(Number(event.target.value) / 100, 0.5, 1.5);
     if (action === "hair-width") state.hair.stretchX = value;
     else state.hair.stretchY = value;
     const label = event.target.closest("label")?.querySelector("b");
@@ -2148,8 +2277,19 @@ async function onClick(event) {
     if (action === "go") go(button.dataset.route);
     else if (action === "hair-style") {
       state.hair.styleId = button.dataset.id;
+      state.hairGroup = hairStyleById(button.dataset.id).group;
       persistHair();
       render();
+    } else if (action === "hair-group") {
+      state.hairGroup = button.dataset.id;
+      render();
+    } else if (action === "hair-model") useHairModel(button.dataset.id);
+    else if (action === "hair-fit") await autoFitHair({ resetLift: true });
+    else if (action === "hair-pushback") {
+      state.hair.pushBack = !state.hair.pushBack;
+      button.setAttribute("aria-pressed", state.hair.pushBack ? "true" : "false");
+      persistHair();
+      mountHairArt();
     } else if (action === "hair-color") {
       state.hair.colorId = button.dataset.id;
       document.querySelectorAll('[data-action="hair-color"]').forEach((swatch) => {
@@ -2159,6 +2299,8 @@ async function onClick(event) {
       persistHair();
     } else if (action === "hair-pose") {
       state.hair.photoId = button.dataset.id;
+      state.hair.modelId = null;
+      state.hair.fitFor = "";
       persistHair();
       render();
     } else if (action === "hair-camera") {
@@ -2169,8 +2311,7 @@ async function onClick(event) {
       const hasFace = state.photos.some((photo) => photo.slot === "face" && !photo.demo);
       startPick("photo", { slot: hasFace ? "extra" : "face", camera: "0", facing: "user", forHair: true, name: hasFace ? "Hair photo" : "" });
       return;
-    } else if (action === "hair-sample") await useSampleFace();
-    else if (action === "hair-nudge") nudgeHair(button.dataset.what, Number(button.dataset.dir) || 0);
+    } else if (action === "hair-nudge") nudgeHair(button.dataset.what, Number(button.dataset.dir) || 0);
     else if (action === "hair-reset") resetHairPlacement();
     else if (action === "hair-save") await saveHairLook();
     else if (action === "onboard-next") advanceOnboarding();

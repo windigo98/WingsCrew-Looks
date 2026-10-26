@@ -22,11 +22,13 @@ Then visit `http://127.0.0.1:4173`.
 
 On a phone, use the same Wi-Fi and open `http://<your-computer>:4173`. Add to Home Screen from Safari if you want it full screen. Photos stay in this browser's storage (IndexedDB).
 
-Wishlist shape checks (no browser needed):
+Unit checks (no browser needed):
 
 ```bash
-node --test tests/wishlist.test.js
+npm test            # same as: node --test tests/*.test.js
 ```
+
+Third-party code: `assets/vendor/mediapipe/` is Google's MediaPipe Tasks Vision 1.1.1 (Apache License 2.0, see the `LICENSE` and `README.md` in that folder). It runs on the device; the app never calls a face API.
 
 ## What's real, and what's a demo
 
@@ -35,7 +37,7 @@ node --test tests/wishlist.test.js
 | Photos | Real camera or upload. Stored only on the device. One tap deletes them, with undo. | Accounts, encrypted storage, deletion from AI providers |
 | Dressing a look | Real drag, pinch, rotate, flip, delete, and layer order. Sample art plus your images. | AI try-on (FASHN, Google Virtual Try-On, or similar) that redraws the garment on the body |
 | Makeup | Real preset overlays: Natural, Glam, Bold lip, Smoky eye. Drag them onto the face. | A makeup model (Perfect Corp, a guided image edit, or MediaPipe landmarks) |
-| Hair | Eight photo-real salon styles (Textured Pixie, Chin-Length Blunt Bob, Long Sleek Layers, Beach Waves, Defined Curls, Knotless Box Braids, High-Top Fade, Sleek High Bun), each in six colors painted on the device so the shine stays. Drag, pinch, and twist on your photo. Saved looks use the same share link and Fit or Miss vote. Nothing is uploaded until you share. | More styles |
+| Hair | Sixteen photo-real salon styles in four groups. Short: Textured Pixie, Classic Taper, Textured Crop / Buzz Cut, High-Top Fade. Medium: Chin-Length Blunt Bob, Collarbone Lob, Curtain Bangs Shag, Wolf Cut. Long: Long Sleek Layers, Beach Waves, Silk Press, Sleek High Bun. Textured: Defined Curls, Natural Afro, Knotless Box Braids, Starter Locs / Shoulder Locs. Six colors are painted on the device so the shine stays. **Auto-fit** finds the face on the phone (bundled MediaPipe Face Landmarker, no network) and sets position, size, tilt, and width; **Fit to face** re-runs it, and a Hairline slider and Push hair back / Push bangs back fine-tune it. If no face is found, the hair goes in the middle with a hint. Twelve practice models (AI-made, fictional people, a woman and a man for each of Oval, Round, Square, Heart, Long (Oblong), and Diamond faces) live under **Pick a model**. Saved looks use the same share link and Fit or Miss vote. Nothing is uploaded until you share. | More styles |
 | Background lift | Real, on-device, for a plain light backdrop. It will damage white clothing, so it is off unless you turn it on. | A proper matte model such as `@imgly/background-removal` |
 | Looks, closet, wishlist, votes | Real, on this device. **Share link** publishes a Fit or Miss page. Until Supabase is connected it is a demo that only opens on this phone. | Live links on other phones. See [docs/supabase-setup.md](docs/supabase-setup.md) |
 | "AI preview" badge | Burned into dressed images, and shown on the studio. Hair saves are drawings, so they do not get that badge. | Keep it on dressed images. The AI label does not come off those. |

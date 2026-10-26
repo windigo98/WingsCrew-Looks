@@ -666,6 +666,18 @@ body.in-studio.sheet-open .toast {
 .hair-slider b { min-width: 2.4em; color: var(--ink); }
 .hair-slider input { width: 100%; accent-color: var(--rose); }
 .hair h3 { font-size: 15px; margin: 12px 0 8px; font-family: var(--sans); font-weight: 700; letter-spacing: 0; }
+.hair-groups { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.hair-groups .chip { flex: 0 0 auto; }
+.hair-tip[data-status="none"],
+.hair-tip[data-status="error"] { color: var(--ink); }
+.hair-fit-row { margin-bottom: 4px; }
+.hair-toggle[aria-pressed="true"] { background: var(--rose); color: #fff; border-color: var(--rose); }
+.hair-model-note { margin-top: -4px; }
+.hair-models { gap: 12px; align-items: flex-start; }
+.hair-model-group { flex: none; display: flex; flex-direction: column; gap: 4px; }
+.hair-model-shape { font-size: 12px; font-weight: 700; color: var(--ink); text-align: center; }
+.hair-model-pair { display: flex; gap: 6px; }
+.hair-model img { object-position: center 30%; }
 
 @media (hover: hover) {
   .btn:hover { transform: translateY(-1px); }
