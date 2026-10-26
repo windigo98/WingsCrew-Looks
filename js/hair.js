@@ -63,6 +63,13 @@ export const HAIR_STYLES = [
   style("afro", "Natural Afro", "afro", "textured", { for: ["women"], face: { crown: 4, allow: 0.36 } }),
   style("locs", "Shoulder Locs", "locs", "textured", { for: ["women", "men"], face: { crown: 90, allow: 0.06 } }),
   style("shag", "Wispy Bangs Shag", "shag", "medium", { bangs: true, for: ["women"], face: { crown: 14, allow: 0.1 } }),
+  // v18: six more 2026 salon favorites for women.
+  style("frenchbob", "French Bob + Bangs", "frenchbob", "short", { bangs: true, for: ["women"], face: { crown: 114, allow: 0.05 } }),
+  style("bixie", "Bixie", "bixie", "short", { bangs: true, for: ["women"], face: { crown: 98, allow: 0.08 } }),
+  style("curtain", "Curtain Bangs + Long Layers", "curtain", "long", { bangs: true, for: ["women"], face: { crown: 106, allow: 0.08 } }),
+  style("boho", "Boho Goddess Braids", "boho", "textured", { for: ["women"], face: { crown: 106, allow: 0.08 } }),
+  style("halfup", "Half-Up Half-Down", "halfup", "up", { for: ["women"], face: { crown: 86, allow: 0.07 } }),
+  style("curlyshag", "Curly Shag", "curlyshag", "textured", { bangs: true, for: ["women"], face: { crown: 106.5, allow: 0.1 } }),
   style("crop", "Low Taper + Textured Crop", "crop", "short", { bangs: true, for: ["men"], face: { top: 140, halfW: 84, crown: 81, allow: 0.07 } }),
   style("buzz", "Buzz Cut", "buzz", "short", { for: ["men"], face: { crown: 69, allow: 0.04 } }),
   style("taper", "Classic Side Part", "taper", "short", { for: ["men"], face: { top: 138, crown: 77, allow: 0.08 } }),
@@ -76,6 +83,13 @@ export const HAIR_STYLES = [
   style("curlytop", "Curly Top + Taper", "curlytop", "textured", { bangs: true, for: ["men"], face: { crown: 65, allow: 0.12 } }),
   style("twists", "Two-Strand Twists", "twists", "textured", { bangs: true, for: ["men"], face: { crown: 75, allow: 0.1 } }),
   style("cornrows", "Stitch Braids", "cornrows", "textured", { for: ["men"], face: { crown: 52, allow: 0.05 } }),
+  // v18: six more 2026 barbershop favorites for men.
+  style("frenchcrop", "Textured French Crop", "frenchcrop", "short", { bangs: true, for: ["men"], face: { crown: 126.5, allow: 0.03 } }),
+  style("burst", "Burst Fade", "burst", "short", { for: ["men"], face: { crown: 120.5, allow: 0.04 } }),
+  style("slickback", "Slick Back", "slickback", "medium", { for: ["men"], face: { crown: 108.5, allow: 0.07 } }),
+  style("ivy", "Ivy League", "ivy", "short", { for: ["men"], face: { crown: 125.5, allow: 0.03 } }),
+  style("middlepart", "Middle Part (Curtains)", "middlepart", "medium", { bangs: true, for: ["men"], face: { crown: 122.5, allow: 0.05 } }),
+  style("crew", "Crew Cut", "crew", "short", { for: ["men"], face: { crown: 128, allow: 0.03 } }),
 ];
 
 export function hairStylesFor(audience) {
@@ -239,8 +253,8 @@ export const HAIR_MODELS = FACE_SHAPES.flatMap((shape) =>
  * neutral medium brown (recolored on the phone). Models with no portraits yet are
  * left out of the picker.
  */
-const WOMEN_LOOKS = ["bob", "lob", "butterfly", "straight", "blowout", "waves", "silk", "curls", "braids", "ponytail", "bun", "pixie", "wolf", "afro", "locs", "shag"];
-const MEN_LOOKS = ["crop", "buzz", "taper", "comma", "twoblock", "softwolf", "mullet", "flow", "fade", "waves360", "curlytop", "twists", "cornrows", "locs"];
+const WOMEN_LOOKS = ["bob", "lob", "butterfly", "straight", "blowout", "waves", "silk", "curls", "braids", "ponytail", "bun", "pixie", "wolf", "afro", "locs", "shag", "frenchbob", "bixie", "curtain", "boho", "halfup", "curlyshag"];
+const MEN_LOOKS = ["crop", "buzz", "taper", "comma", "twoblock", "softwolf", "mullet", "flow", "fade", "waves360", "curlytop", "twists", "cornrows", "locs", "frenchcrop", "burst", "slickback", "ivy", "middlepart", "crew"];
 export const HAIR_LOOKS = {
   "oval-woman": WOMEN_LOOKS,
   "round-woman": WOMEN_LOOKS,

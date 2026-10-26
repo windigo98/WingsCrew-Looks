@@ -46,10 +46,12 @@ const SALON_NAMES = {
   women: [
     "Sleek Chin Bob", "Italian Lob", "Butterfly Cut", "Long Layers", "Bouncy Blowout", "Beach Waves", "Silk Press", "Defined Curls",
     "Knotless Braids", "Sleek High Ponytail", "High Bun / Chignon", "Textured Pixie", "Wolf Cut", "Natural Afro", "Shoulder Locs", "Wispy Bangs Shag",
+    "French Bob + Bangs", "Bixie", "Curtain Bangs + Long Layers", "Boho Goddess Braids", "Half-Up Half-Down", "Curly Shag",
   ],
   men: [
     "Low Taper + Textured Crop", "Buzz Cut", "Classic Side Part", "Comma Hair", "Two-Block", "Soft Wolf Cut", "Modern Mullet",
-    "Flow (Swept Back)", "High-Top Fade", "360 Waves", "Curly Top + Taper", "Two-Strand Twists", "Stitch Braids", "Shoulder Locs",
+    "Flow (Swept Back)", "High-Top Fade", "360 Waves", "Curly Top + Taper", "Two-Strand Twists", "Stitch Braids",
+    "Textured French Crop", "Burst Fade", "Slick Back", "Ivy League", "Middle Part (Curtains)", "Crew Cut", "Shoulder Locs",
   ],
 };
 
@@ -99,6 +101,37 @@ test("trend sets: women's and men's styles and fourteen labeled colors", () => {
   // Old saved looks keep working: the original ids are still here.
   for (const id of ["black", "dark-brown", "light-brown", "blonde", "auburn", "pink"]) assert.ok(HAIR_COLORS.some((c) => c.id === id), id);
   assert.equal(new Set(HAIR_COLORS.map((c) => c.id)).size, HAIR_COLORS.length);
+});
+
+const V18_STYLES = {
+  women: ["frenchbob", "bixie", "curtain", "boho", "halfup", "curlyshag"],
+  men: ["frenchcrop", "burst", "slickback", "ivy", "middlepart", "crew"],
+};
+
+test("v18 adds six women's and six men's styles, kept in their own sets and close to the head", () => {
+  assert.equal(hairStylesFor("women").length, 22);
+  assert.equal(hairStylesFor("men").length, 20);
+  for (const [audience, ids] of Object.entries(V18_STYLES)) {
+    const other = audience === "women" ? "men" : "women";
+    for (const id of ids) {
+      const style = HAIR_STYLES.find((item) => item.id === id);
+      assert.ok(style, id);
+      assert.deepEqual(style.for, [audience], `${id} is only for ${audience}`);
+      assert.ok(!hairStylesFor(other).some((item) => item.id === id), `${id} never shows for ${other}`);
+      assert.ok(style.face.allow <= 0.1, `${id} sits close to the head (no cone)`);
+      assert.ok(style.face.crown >= 80, `${id} crown is not tall`);
+      for (const model of LOOK_MODELS) {
+        const src = hairLookSrc(model.id, id);
+        if (modelAudience(model) === audience) assert.equal(src, `assets/looks/${model.id}/${id}.webp`);
+        else assert.equal(src, null, `${id} is not on ${model.id}`);
+      }
+    }
+  }
+  // Short men's cuts stay tight to the skull.
+  for (const id of ["frenchcrop", "burst", "ivy", "crew"]) {
+    assert.ok(HAIR_STYLES.find((item) => item.id === id).face.allow <= 0.04, `${id} is low`);
+  }
+  assert.equal(Object.values(HAIR_LOOKS).reduce((sum, list) => sum + list.length, 0), 252);
 });
 
 test("each hairstyle is a transparent WebP of the same size, under 300 KB", async () => {
