@@ -247,6 +247,7 @@ export const HAIR_LOOKS = {
   "square-woman": WOMEN_LOOKS,
   "oval-man": MEN_LOOKS,
   "square-man": MEN_LOOKS,
+  "round-man": MEN_LOOKS,
 };
 
 /** Practice models that have portraits, in picker order. */
