@@ -1,13 +1,13 @@
-const CACHE = "wingscrew-looks-v15";
+const CACHE = "wingscrew-looks-v16";
 
 const PRECACHE = [
   "./",
   "./index.html",
   "./manifest.json",
-  "./css/app.css?v=12",
-  "./js/app.js?v=15",
-  "./js/hair.js?v=15",
-  "./js/face-fit.js?v=15",
+  "./css/app.css?v=13",
+  "./js/app.js?v=16",
+  "./js/hair.js?v=16",
+  "./js/face-fit.js?v=16",
   "./assets/favicon.svg",
   "./assets/hair/afro.webp",
   "./assets/hair/beach-waves.webp",
@@ -54,7 +54,11 @@ const PRECACHE = [
   "./assets/vendor/mediapipe/wasm/vision_wasm_internal.js",
   "./assets/vendor/mediapipe/wasm/vision_wasm_internal.wasm",
   "./assets/vendor/mediapipe/face_landmarker.task",
+  "./assets/vendor/mediapipe/hair_segmenter.tflite",
 ];
+
+/** Model portraits (assets/looks/) are not precached: each is cached the first time it's viewed. */
+const LOOKS_PATH = "/assets/looks/";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()));
@@ -73,6 +77,18 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.includes(LOOKS_PATH)) {
+    event.respondWith(
+      caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+        if (response && response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
+        }
+        return response;
+      })),
+    );
+    return;
+  }
   event.respondWith(
     fetch(request)
       .then((response) => {

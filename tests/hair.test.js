@@ -4,32 +4,39 @@ import test from "node:test";
 import {
   FACE_POINTS,
   FACE_SHAPES,
-  FIT_ASPECT,
+  CONTOUR_STEPS,
+  FACE_OVAL,
   HAIR_AUDIENCES,
   HAIR_COLORS,
   HAIR_FACE,
   HAIR_GROUPS,
+  HAIR_LOOKS,
   HAIR_LIFT_RANGE,
   HAIR_MODELS,
   HAIR_STYLES,
   HAIR_VIEW_H,
   HAIR_VIEW_W,
   HEAD,
-  MIN_TOP_SCALE,
-  SQUEEZE_BAND,
+  LOOK_MODELS,
+  MIN_CROWN,
   containRect,
+  contourRadius,
   defaultHairPlacement,
   facePointsFromLandmarks,
   fitHairToFace,
   hairColorLut,
   hairFrame,
+  hairLookSrc,
   hairModelById,
   hairStylesFor,
+  headContour,
   hexToRgb,
+  modelAudience,
+  openingRadius,
   pushBackOval,
-  squeezeFor,
-  squeezeRow,
+  recolorHairPixels,
   tintHairPixels,
+  warpSource,
 } from "../js/hair.js";
 
 const SALON_NAMES = {
@@ -97,23 +104,85 @@ test("each hairstyle is a transparent WebP of the same size, under 300 KB", asyn
   }
 });
 
-test("service worker precaches every hairstyle at the new version", async () => {
+test("service worker precaches the app at v16 and caches portraits as they're viewed", async () => {
   const sw = await readFile(new URL("../sw.js", import.meta.url), "utf8");
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   const app = await readFile(new URL("../js/app.js", import.meta.url), "utf8");
-  assert.match(sw, /wingscrew-looks-v15/);
-  assert.match(sw, /app\.js\?v=15/);
-  assert.match(sw, /hair\.js\?v=15/);
-  assert.match(sw, /face-fit\.js\?v=15/);
-  assert.match(html, /app\.js\?v=15/);
-  assert.match(app, /hair\.js\?v=15/);
-  assert.match(app, /face-fit\.js\?v=15/);
+  const fit = await readFile(new URL("../js/face-fit.js", import.meta.url), "utf8");
+  assert.match(sw, /wingscrew-looks-v16/);
+  assert.match(sw, /app\.js\?v=16/);
+  assert.match(sw, /hair\.js\?v=16/);
+  assert.match(sw, /face-fit\.js\?v=16/);
+  assert.match(html, /app\.js\?v=16/);
+  assert.match(app, /hair\.js\?v=16/);
+  assert.match(app, /face-fit\.js\?v=16/);
+  assert.match(fit, /hair\.js\?v=16/);
+  assert.doesNotMatch(`${sw}${html}${app}${fit}`, /\?v=15"/);
   for (const style of HAIR_STYLES) assert.ok(sw.includes(`./${style.src}`), style.src);
   for (const model of HAIR_MODELS) assert.ok(sw.includes(`./${model.src}`), model.src);
-  for (const file of ["vision_bundle.mjs", "wasm/vision_wasm_internal.wasm", "face_landmarker.task"]) {
+  for (const file of ["vision_bundle.mjs", "wasm/vision_wasm_internal.wasm", "face_landmarker.task", "hair_segmenter.tflite"]) {
     assert.ok(sw.includes(`./assets/vendor/mediapipe/${file}`), file);
   }
+  assert.doesNotMatch(sw, /assets\/looks\/[a-z]/, "portraits are not precached");
+  assert.match(sw, /LOOKS_PATH/);
   assert.doesNotMatch(sw, /sample-face|assets\/hair\/[a-z-]+\.svg/);
+});
+
+test("model portraits: every listed look exists, matches the model's set, and is small", async () => {
+  assert.ok(LOOK_MODELS.length >= 4);
+  for (const audience of ["women", "men"]) assert.ok(LOOK_MODELS.some((model) => modelAudience(model) === audience), audience);
+  for (const [modelId, styles] of Object.entries(HAIR_LOOKS)) {
+    const model = hairModelById(modelId);
+    assert.ok(model, modelId);
+    const audience = modelAudience(model);
+    assert.deepEqual([...styles].sort(), hairStylesFor(audience).map((item) => item.id).sort(), `${modelId} wears its whole set`);
+    for (const styleId of styles) {
+      const src = hairLookSrc(modelId, styleId);
+      assert.equal(src, `assets/looks/${modelId}/${styleId}.webp`);
+      const buffer = await readFile(new URL(`../${src}`, import.meta.url));
+      assert.equal(buffer.toString("ascii", 8, 12), "WEBP", src);
+      assert.ok(buffer.length < 90 * 1024, `${src} is ${buffer.length} bytes`);
+      const chunk = buffer.toString("ascii", 12, 16);
+      // Lossy VP8: the frame size sits after the 3-byte start code.
+      if (chunk === "VP8 ") {
+        const w = buffer.readUInt16LE(26) & 0x3fff;
+        const h = buffer.readUInt16LE(28) & 0x3fff;
+        assert.ok(w <= 720 && h <= 960, `${src} ${w}x${h}`);
+      }
+    }
+  }
+  assert.equal(modelAudience(hairModelById("oval-man")), "men");
+  assert.equal(modelAudience(hairModelById("oval-woman")), "women");
+  assert.equal(hairLookSrc("oval-man", "bob"), null, "no women's cuts on the men");
+  assert.equal(hairLookSrc("nobody", "bob"), null);
+});
+
+test("portrait recolor keeps strand light and shade and leaves skin alone", () => {
+  const color = HAIR_COLORS.find((item) => item.id === "blonde");
+  const lut = hairColorLut(color);
+  const shades = [60, 80, 100, 120, 140];
+  const data = new Uint8ClampedArray((shades.length + 1) * 4);
+  shades.forEach((v, i) => data.set([v, v * 0.8, v * 0.6, 255], i * 4));
+  data.set([200, 150, 120, 255], shades.length * 4); // skin
+  const mask = new Float32Array([1, 1, 1, 1, 1, 0]);
+  recolorHairPixels(data, mask, lut);
+  const lum = (i) => 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
+  for (let i = 1; i < shades.length; i += 1) assert.ok(lum(i) > lum(i - 1), "brighter strands stay brighter");
+  assert.ok(lum(shades.length - 1) > 180, "blonde highlights are light");
+  assert.deepEqual([...data.slice(shades.length * 4)], [200, 150, 120, 255], "skin untouched");
+  const edge = new Uint8ClampedArray([100, 80, 60, 255]);
+  recolorHairPixels(edge, new Float32Array([0.01]), lut);
+  assert.deepEqual([...edge], [100, 80, 60, 255], "no hair, no change");
+});
+
+test("vendored hair segmenter is local and listed", async () => {
+  const base = new URL("../assets/vendor/mediapipe/", import.meta.url);
+  assert.ok((await stat(new URL("hair_segmenter.tflite", base))).size > 100000);
+  const readme = await readFile(new URL("README.md", base), "utf8");
+  assert.match(readme, /hair_segmenter\.tflite.*Apache-2\.0/);
+  const fit = await readFile(new URL("../js/face-fit.js", import.meta.url), "utf8");
+  assert.match(fit, /ImageSegmenter/);
+  assert.match(fit, /hair_segmenter\.tflite/);
 });
 
 test("color lookup runs shadow to mid to highlight and keeps strand contrast", () => {
@@ -238,6 +307,8 @@ test("face points come from the MediaPipe mesh", () => {
   const mesh = Array.from({ length: 478 }, (_, i) => ({ x: i / 1000, y: 1 - i / 1000 }));
   const points = facePointsFromLandmarks(mesh);
   for (const [name, index] of Object.entries(FACE_POINTS)) assert.deepEqual(points[name], mesh[index]);
+  assert.equal(points.oval.length, FACE_OVAL.length);
+  assert.deepEqual(points.oval[0], mesh[10]);
   assert.equal(facePointsFromLandmarks([]), null);
   assert.equal(facePointsFromLandmarks(null), null);
 });
@@ -283,7 +354,8 @@ test("auto-fit centers the face between hairline and chin, keeps the style's sha
     assert.ok(fit, `fit at ${tilt}°`);
     assert.ok(Math.abs(fit.rotation - tilt) < 1e-6, `rotation ${fit.rotation} vs ${tilt}`);
     assert.equal(fit.stretchX, 1);
-    assert.ok(Math.abs(fit.stretchY - 1) <= FIT_ASPECT + 1e-9, `height stays within ±8% of width (${fit.stretchY})`);
+    assert.equal(fit.stretchY, 1, "no squash: size comes from the head");
+    assert.equal(fit.contour.length, CONTOUR_STEPS);
     const placed = openingOnStage(400, 400, { ...defaultHairPlacement(), ...fit }, style);
     // Brow-to-chin is 0.6 * size; the hairline sits HEAD.hairline of that above the brow.
     const bc = 0.6 * 0.4;
@@ -296,51 +368,57 @@ test("auto-fit centers the face between hairline and chin, keeps the style's sha
     assert.ok(Math.hypot(placedMid.x - mid.x, placedMid.y - mid.y) < 0.5, `opening centered at ${tilt}°`);
     const len = Math.hypot(placed.chin.x - placed.hairline.x, placed.chin.y - placed.hairline.y);
     const want = Math.hypot(chin.x - hairline.x, chin.y - hairline.y);
-    // This test face is wide, so the ±8% shape limit wins over the exact hairline-to-chin height.
-    assert.ok(len / want > 0.9 && len / want < 1.2, `opening height ${len} vs ${want}`);
+    assert.ok(Math.abs(len / want - 1) < 0.01, `opening height ${len} vs ${want}`);
   }
   assert.equal(fitHairToFace(null, { imageW: 1, imageH: 1, stageW: 1, stageH: 1 }, style), null);
   const flat = synthetic({ size: 0 });
   assert.equal(fitHairToFace(flat, { imageW: 600, imageH: 800, stageW: 300, stageH: 400 }, style), null);
 });
 
-test("the crown is squeezed down to just over the skull", () => {
+test("no crown press-down: the hair above the head is thinned as a dome, never flattened", () => {
   const stage = { imageW: 800, imageH: 800, stageW: 400, stageH: 400 };
   const points = synthetic({ cx: 0.5, cy: 0.52, size: 0.4 });
-  const browY = (0.52 - 0.1 * 0.4) * 400;
-  const bc = 0.6 * 0.4 * 400;
   for (const style of HAIR_STYLES) {
     const fit = fitHairToFace(points, stage, style);
-    assert.ok(fit.topScale >= MIN_TOP_SCALE && fit.topScale <= 1, `${style.id} topScale ${fit.topScale}`);
-    const frame = hairFrame(400, 400, { ...defaultHairPlacement(), ...fit });
-    const ky = frame.h / HAIR_VIEW_H;
-    const topY = frame.cy + (style.face.top - HAIR_FACE.cy) * ky;
-    const crownY = topY - (style.face.top - squeezeRow(style.face.crown, style.face.top, Math.min(SQUEEZE_BAND, style.face.top - style.face.crown), fit.topScale)) * ky;
-    const above = (browY - crownY) / bc; // crown height above the brow, in brow-to-chin units
-    const target = HEAD.skull + style.face.allow;
-    if (fit.topScale > MIN_TOP_SCALE) assert.ok(Math.abs(above - target) < 0.03, `${style.id} crown ${above.toFixed(3)} vs ${target}`);
-    else assert.ok(above >= target - 0.03, `${style.id} fully squeezed crown stays above the skull`);
-    assert.ok(above < 1.1, `${style.id} is not a cone head (${above.toFixed(2)})`);
+    assert.equal(fit.topScale, undefined, "v15 press-down is gone");
+    assert.ok(fit.crown >= MIN_CROWN && fit.crown <= 1, `${style.id} crown ${fit.crown}`);
+    // Thinning is strongest straight up and fades to none at ear level.
+    const face = style.face;
+    const flat = Array(CONTOUR_STEPS).fill(0).map((_, i) => openingRadius(face, (i / CONTOUR_STEPS) * Math.PI * 2));
+    const upOut = warpSource(HAIR_FACE.cx, HAIR_FACE.cy - flat[CONTOUR_STEPS * 0.75] - 20, face, flat, 0.5);
+    assert.ok(Math.abs(upOut.y - (HAIR_FACE.cy - flat[CONTOUR_STEPS * 0.75] - 40)) < 0.6, `${style.id} reads twice as far up`);
+    const sideOut = warpSource(HAIR_FACE.cx + face.halfW + 20, HAIR_FACE.cy, face, flat, 0.5);
+    assert.ok(Math.abs(sideOut.x - (HAIR_FACE.cx + face.halfW + 20)) < 0.6, `${style.id} sides keep their thickness`);
   }
 });
 
-test("squeeze math: rows below the opening stay, the top packs down smoothly", () => {
-  assert.equal(squeezeFor(100, 120), 1);
-  assert.equal(squeezeFor(0, 10), 1);
-  assert.equal(squeezeFor(200, 0), MIN_TOP_SCALE);
-  const c = squeezeFor(150, 60);
-  const landed = 150 - squeezeRow(150 - 150, 150, SQUEEZE_BAND, c);
-  assert.ok(Math.abs(landed - 60) < 3, `crown lands at ${landed}`);
-  assert.equal(squeezeRow(200, 150, SQUEEZE_BAND, 0.5), 200);
-  assert.equal(squeezeRow(40, 150, SQUEEZE_BAND, 1), 40);
-  let last = -Infinity;
-  for (let y = 0; y <= 150; y += 1) {
-    const out = squeezeRow(y, 150, SQUEEZE_BAND, 0.4);
-    assert.ok(out > last, "rows keep their order");
-    if (y > 0) assert.ok(out - last <= 1 + 1e-9 && out - last >= 0.4 - 1e-9, "spacing eases between topScale and 1");
-    last = out;
+test("head contour: the warp maps the style's opening onto the real head outline", () => {
+  const face = HAIR_STYLES.find((item) => item.id === "pixie").face;
+  // A narrow head: 70% of the opening's width, same height.
+  const outline = [];
+  for (let i = 0; i < 36; i += 1) {
+    const a = (i / 36) * Math.PI * 2;
+    const ry = Math.sin(a) < 0 ? HAIR_FACE.cy - face.top : face.chin - HAIR_FACE.cy;
+    outline.push({ x: HAIR_FACE.cx + Math.cos(a) * face.halfW * 0.7, y: HAIR_FACE.cy + Math.sin(a) * ry });
   }
-  assert.ok(Math.abs(squeezeRow(150 - 1e-6, 150, SQUEEZE_BAND, 0.4) - 150) < 1e-3, "continuous at the opening");
+  const ring = headContour(outline, HAIR_FACE.cy, face.top);
+  assert.equal(ring.length, CONTOUR_STEPS);
+  assert.ok(Math.abs(contourRadius(ring, 0) - face.halfW * 0.7) < 1, "side radius follows the head");
+  assert.ok(Math.abs(contourRadius(ring, Math.PI * 1.5) - (HAIR_FACE.cy - face.top)) < 1, "top reaches the hairline");
+  // The opening's edge lands on the head outline, so the inner edge hugs the head.
+  for (const a of [0, Math.PI / 4, Math.PI, Math.PI * 1.25, Math.PI * 1.5]) {
+    const r = contourRadius(ring, a);
+    const src = warpSource(HAIR_FACE.cx + Math.cos(a) * r, HAIR_FACE.cy + Math.sin(a) * r, face, ring, 1);
+    const back = Math.hypot(src.x - HAIR_FACE.cx, src.y - HAIR_FACE.cy);
+    assert.ok(Math.abs(back - openingRadius(face, a)) < 0.5, `edge at ${a.toFixed(2)}`);
+  }
+  // Hair 30 units out from the opening stays 30 units out from the head (not wider than the head).
+  const out = warpSource(HAIR_FACE.cx + face.halfW * 0.7 + 30, HAIR_FACE.cy, face, ring, 1);
+  assert.ok(Math.abs(out.x - (HAIR_FACE.cx + face.halfW + 30)) < 1);
+  // The mesh stops short of the hairline: raise the forehead to meet it.
+  const low = outline.map((p) => (p.y < HAIR_FACE.cy ? { x: p.x, y: HAIR_FACE.cy - (HAIR_FACE.cy - p.y) * 0.8 } : p));
+  const raised = headContour(low, HAIR_FACE.cy, face.top);
+  assert.ok(Math.abs(contourRadius(raised, Math.PI * 1.5) - (HAIR_FACE.cy - face.top)) < 1);
 });
 
 test("auto-fit on every model and the tilted test faces lands inside the face", () => {
@@ -366,10 +444,14 @@ test("auto-fit on every model and the tilted test faces lands inside the face", 
       assert.ok(up(brow, placed.hairline) > 0.1 * faceW, `${name} ${style.id} hairline above brow`);
       assert.ok(up(brow, placed.hairline) < 0.6 * faceW, `${name} ${style.id} hairline not too high`);
       assert.ok(Math.hypot(placed.chin.x - chin.x, placed.chin.y - chin.y) < 0.12 * faceW, `${name} ${style.id} chin`);
-      assert.ok(Math.abs(fit.stretchY - 1) <= FIT_ASPECT + 1e-9, `${name} ${style.id} keeps its shape`);
-      const ratio = placed.width / faceW;
-      assert.ok(ratio > 0.85 && ratio < 1.02, `${name} ${style.id} width ratio ${ratio}`);
+      assert.equal(fit.stretchY, 1, `${name} ${style.id} keeps its shape`);
       assert.equal(fit.stretchX, 1, `${name} ${style.id} stretch`);
+      // The head outline from the mesh: about as wide as the face, never a helmet.
+      const unit = Math.hypot(placed.chin.x - placed.hairline.x, placed.chin.y - placed.hairline.y) / (style.face.chin - style.face.top);
+      const sides = (contourRadius(fit.contour, 0) + contourRadius(fit.contour, Math.PI)) * unit;
+      assert.ok(sides / faceW > 0.9 && sides / faceW < 1.15, `${name} ${style.id} head width ${(sides / faceW).toFixed(2)}`);
+      const top = contourRadius(fit.contour, Math.PI * 1.5);
+      assert.ok(Math.abs(top - (HAIR_FACE.cy - style.face.top)) < 2, `${name} ${style.id} outline reaches the hairline`);
     }
   }
 });

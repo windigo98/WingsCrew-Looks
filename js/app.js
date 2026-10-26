@@ -15,18 +15,21 @@ import {
   HAIR_COLORS,
   HAIR_GROUPS,
   HAIR_LIFT_RANGE,
-  HAIR_MODELS,
+  LOOK_MODELS,
   defaultHairPlacement,
   fitHairToFace,
   flattenHairCanvas,
   hairColorById,
+  hairColorLut,
   hairFrame,
-  hairModelById,
+  hairLookSrc,
   hairStyleById,
   hairStylesFor,
+  modelAudience,
+  recolorHairPixels,
   tintedHairCanvas,
-} from "./hair.js?v=15";
-import { detectFace } from "./face-fit.js?v=15";
+} from "./hair.js?v=16";
+import { detectFace, hairMask } from "./face-fit.js?v=16";
 
 const NAV = [
   ["dress", "Dress", icon("dress")],
@@ -1636,15 +1639,36 @@ function hairPhoto() {
 
 /** What the hair sits on: one of your photos, or a practice model. */
 function hairSource() {
-  const model = state.hair.modelId ? hairModelById(state.hair.modelId) : null;
-  if (model) return { kind: "model", id: model.id, src: model.src, key: `model:${model.id}`, label: model.label };
+  const model = hairLookModel();
+  if (model) {
+    syncLookStyle(model);
+    const src = hairLookSrc(model.id, state.hair.styleId);
+    return { kind: "look", id: model.id, src, key: `look:${model.id}:${state.hair.styleId}`, label: model.label };
+  }
   const photo = hairPhoto();
   if (!photo) return null;
   const key = `photo:${photo.id}:${photo.revision || photo.createdAt}`;
   return { kind: "photo", id: photo.id, src: mediaUrl(key, photo.blob), key, label: photo.name };
 }
 
+/** The practice model in use, if any (only models with finished portraits). */
+function hairLookModel() {
+  if (!state.hair.modelId) return null;
+  return LOOK_MODELS.find((model) => model.id === state.hair.modelId) || null;
+}
+
+/** Models wear only their own set: keep the tab and style in step with the model. */
+function syncLookStyle(model) {
+  const audience = modelAudience(model);
+  state.hairAudience = audience;
+  if (!hairLookSrc(model.id, state.hair.styleId)) {
+    state.hair.styleId = hairStylesFor(audience)[0].id;
+    state.hairGroup = "";
+  }
+}
+
 function pickDefaultHairPhoto() {
+  if (state.hair.modelId && !hairLookModel()) state.hair.modelId = LOOK_MODELS[0].id;
   if (hairSource()) return;
   const face = state.photos.find((photo) => photo.slot === "face" && !photo.demo)
     || state.photos.find((photo) => !photo.demo);
@@ -1652,7 +1676,7 @@ function pickDefaultHairPhoto() {
     state.hair.photoId = face.id;
     state.hair.modelId = null;
   } else {
-    state.hair.modelId = HAIR_MODELS[0].id;
+    state.hair.modelId = LOOK_MODELS[0].id;
   }
 }
 
@@ -1669,7 +1693,8 @@ function hairState() {
     rotation: hair.rotation,
     stretchX: hair.stretchX,
     stretchY: hair.stretchY,
-    topScale: hair.topScale ?? 1,
+    crown: hair.crown ?? 1,
+    contour: Array.isArray(hair.contour) ? hair.contour : null,
     lift: hair.lift || 0,
     pushBack: Boolean(hair.pushBack),
     fitFor: hair.fitFor || "",
@@ -1706,6 +1731,7 @@ function hairHtml() {
   const audience = hairAudienceId(style);
   const group = hairGroupId(style, audience);
   const lift = Math.round(state.hair.lift || 0);
+  const isLook = source?.kind === "look";
   const ownPhotos = state.photos.filter((item) => !item.demo);
   return `<section class="hair">
     <div class="section-head"><div><h2>Hair</h2><p class="lede">Pick a style and a color. It stays on this phone until you share.</p></div></div>
@@ -1726,8 +1752,10 @@ function hairHtml() {
     <p class="hair-name" id="hair-name">${escapeHtml(style.label)} · ${escapeHtml(color.label)}</p>
     <div id="hair-stage" class="hair-stage" aria-label="Hair preview">
       ${source ? `<img class="hair-photo" id="hair-photo" alt="" src="${escapeHtml(source.src)}">` : `<p class="hair-empty">Add a photo, or pick a model.</p>`}
-      <div id="hair-overlay" class="hair-overlay"></div>
+      ${isLook ? "" : `<div id="hair-overlay" class="hair-overlay"></div>`}
+      ${source && !isLook ? `<span class="hair-badge">Approximate preview</span>` : ""}
     </div>
+    ${isLook ? `<p class="hint hair-tip" id="hair-fit-note" aria-live="polite">${escapeHtml(state.hairFit.note || "A finished preview of this cut on a made-up model.")}</p>` : `
     <p class="hint hair-tip" id="hair-fit-note" aria-live="polite">${escapeHtml(state.hairFit.note || "Drag to move. Pinch to size and turn.")}</p>
     <div class="row hair-fit-row">
       <button type="button" class="btn small" data-action="hair-fit" ${source ? "" : "disabled"}>Fit to face</button>
@@ -1749,14 +1777,14 @@ function hairHtml() {
     <label class="hair-slider">Height <b>${Math.round(state.hair.stretchY * 100)}</b>
       <input type="range" min="50" max="150" step="1" value="${Math.round(state.hair.stretchY * 100)}" data-action="hair-height" aria-label="Height">
     </label>
-    <p class="hint">Hairline moves the hair up or down. Width and height fine-tune it for your face shape.</p>
+    <p class="hint">Hairline moves the hair up or down. Width and height fine-tune it for your face shape.</p>`}
     <h3>Pick a model</h3>
     <p class="hint hair-model-note">Made-up people, not real ones. Grouped by face shape.</p>
     <div class="scroller hair-models" aria-label="Models by face shape">
-      ${FACE_SHAPES.map((shape) => `<div class="hair-model-group" role="group" aria-label="${escapeHtml(shape.label)} face">
+      ${FACE_SHAPES.filter((shape) => LOOK_MODELS.some((model) => model.shape === shape.id)).map((shape) => `<div class="hair-model-group" role="group" aria-label="${escapeHtml(shape.label)} face">
         <span class="hair-model-shape">${escapeHtml(shape.label)}</span>
         <div class="hair-model-pair">
-          ${HAIR_MODELS.filter((model) => model.shape === shape.id).map((model) => `<button type="button" class="pose-btn hair-model ${model.id === state.hair.modelId ? "active" : ""}" data-action="hair-model" data-id="${model.id}" aria-pressed="${model.id === state.hair.modelId}" aria-label="${escapeHtml(model.label)}"><img alt="" loading="lazy" src="${model.src}">${escapeHtml(model.who)}</button>`).join("")}
+          ${LOOK_MODELS.filter((model) => model.shape === shape.id).map((model) => `<button type="button" class="pose-btn hair-model ${model.id === state.hair.modelId ? "active" : ""}" data-action="hair-model" data-id="${model.id}" aria-pressed="${model.id === state.hair.modelId}" aria-label="${escapeHtml(model.label)}"><img alt="" loading="lazy" src="${model.src}">${escapeHtml(model.who)}</button>`).join("")}
         </div>
       </div>`).join("")}
     </div>
@@ -1871,16 +1899,79 @@ function mountHairArt() {
     const offset = chip.getBoundingClientRect().left - row.getBoundingClientRect().left;
     row.scrollLeft += offset - (row.clientWidth - chip.offsetWidth) / 2;
   }
+  const source = hairSource();
+  if (source?.kind === "look") {
+    mountLookColor(token, source, color);
+    return;
+  }
   applyHairTransform();
-  tintedHairCanvas(style, color, { pushBack: Boolean(state.hair.pushBack), topScale: state.hair.topScale ?? 1 }).then((canvas) => {
+  tintedHairCanvas(style, color, overlayOptions()).then((canvas) => {
     if (token !== hairArtToken || parseRoute().path !== "hair") return;
     const overlay = document.getElementById("hair-overlay");
     if (!overlay) return;
     overlay.replaceChildren(canvas);
     applyHairTransform();
   }).catch((error) => showToast(error.message || "Could not draw that hair."));
-  const source = hairSource();
   if (source && state.hair.fitFor !== `${source.key}|${style.id}`) autoFitHair({ quiet: true });
+}
+
+function overlayOptions() {
+  return {
+    pushBack: Boolean(state.hair.pushBack),
+    contour: Array.isArray(state.hair.contour) ? state.hair.contour : null,
+    crown: state.hair.crown ?? 1,
+  };
+}
+
+const lookCanvases = new Map();
+/**
+ * Recolor a model portrait on the phone: find the hair with the bundled
+ * segmenter (once per portrait), then repaint it in the picked color.
+ */
+async function recoloredLook(src, color) {
+  const key = `${src}|${color.id}`;
+  if (lookCanvases.has(key)) return lookCanvases.get(key);
+  const image = await loadImage(src);
+  const mask = await hairMask(image, src);
+  const canvas = document.createElement("canvas");
+  canvas.width = mask.width;
+  canvas.height = mask.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(image, 0, 0, mask.width, mask.height);
+  const pixels = ctx.getImageData(0, 0, mask.width, mask.height);
+  recolorHairPixels(pixels.data, mask.data, hairColorLut(color));
+  ctx.putImageData(pixels, 0, 0);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+  if (!blob) throw new Error("Could not color that hair.");
+  const entry = { blob, url: URL.createObjectURL(blob) };
+  if (lookCanvases.size > 16) {
+    const [oldKey, old] = lookCanvases.entries().next().value;
+    URL.revokeObjectURL(old.url);
+    lookCanvases.delete(oldKey);
+  }
+  lookCanvases.set(key, entry);
+  return entry;
+}
+
+function mountLookColor(token, source, color) {
+  const img = document.getElementById("hair-photo");
+  if (!img) return;
+  const done = lookCanvases.get(`${source.src}|${color.id}`);
+  if (done) {
+    img.src = done.url;
+    return;
+  }
+  if (img.getAttribute("src") !== source.src) img.src = source.src;
+  setHairFitNote("Coloring the hair…", "busy");
+  recoloredLook(source.src, color).then((entry) => {
+    if (token !== hairArtToken || parseRoute().path !== "hair") return;
+    const now = document.getElementById("hair-photo");
+    if (now) now.src = entry.url;
+    setHairFitNote("A finished preview of this cut on a made-up model.", "fit");
+  }).catch(() => {
+    if (token !== hairArtToken) return;
+    setHairFitNote("Showing the cut in medium brown. Color preview isn't available here.", "error");
+  });
 }
 
 function setHairFitNote(note, status = "") {
@@ -1909,7 +2000,7 @@ async function autoFitHair({ quiet = false, resetLift = false } = {}) {
   const source = hairSource();
   const img = document.getElementById("hair-photo");
   const stage = document.getElementById("hair-stage");
-  if (!source || !img || !stage?.clientWidth) return false;
+  if (!source || source.kind === "look" || !img || !stage?.clientWidth) return false;
   const token = ++hairFitToken;
   const style = hairStyleById(state.hair.styleId);
   const fitKey = `${source.key}|${style.id}`;
@@ -1925,20 +2016,20 @@ async function autoFitHair({ quiet = false, resetLift = false } = {}) {
       stageH: stage.clientHeight,
     }, style);
     const keep = { lift: resetLift ? 0 : state.hair.lift || 0, pushBack: state.hair.pushBack };
-    const prevTop = state.hair.topScale ?? 1;
+    const prevShape = `${(state.hair.contour || []).join(",")}|${state.hair.crown ?? 1}`;
     if (placement) {
       state.hair = { ...state.hair, ...placement, ...keep, fitFor: fitKey };
-      setHairFitNote("Fitted to your face. Drag or use Hairline to fine-tune.", "fit");
+      setHairFitNote("Fitted to your head. It's an approximate preview: drag or use Hairline to fine-tune.", "fit");
     } else {
       const base = defaultHairPlacement();
-      state.hair = { ...state.hair, x: base.x, y: base.y, scale: base.scale, rotation: 0, stretchX: 1, stretchY: 1, topScale: 1, ...keep, fitFor: fitKey };
+      state.hair = { ...state.hair, x: base.x, y: base.y, scale: base.scale, rotation: 0, stretchX: 1, stretchY: 1, crown: 1, contour: null, ...keep, fitFor: fitKey };
       setHairFitNote("Couldn't spot a face, so the hair is in the middle. Drag it into place, or try a front-facing photo.", "none");
       if (!quiet) showToast("No face found. Drag the hair into place.");
     }
     syncHairSliders();
     applyHairTransform();
-    // The fit may trim the crown, which needs a fresh drawing of the hair.
-    if ((state.hair.topScale ?? 1) !== prevTop) mountHairArt();
+    // The hair is bent to the head outline, which needs a fresh drawing.
+    if (`${(state.hair.contour || []).join(",")}|${state.hair.crown ?? 1}` !== prevShape) mountHairArt();
     persistHair();
     return Boolean(placement);
   } catch (error) {
@@ -1973,17 +2064,18 @@ function nudgeHair(what, dir) {
 }
 
 function resetHairPlacement() {
-  const { photoId, modelId, styleId, colorId, fitFor } = state.hair;
-  state.hair = { ...defaultHairPlacement(), photoId, modelId, styleId, colorId, fitFor };
+  const { photoId, modelId, styleId, colorId } = state.hair;
+  state.hair = { ...defaultHairPlacement(), photoId, modelId, styleId, colorId, fitFor: "" };
   setHairFitNote("");
   persistHair();
   render();
 }
 
 function useHairModel(id) {
-  const model = hairModelById(id);
+  const model = LOOK_MODELS.find((item) => item.id === id);
   if (!model) return;
   state.hair.modelId = model.id;
+  syncLookStyle(model);
   state.hair.fitFor = "";
   persistHair();
   render();
@@ -2000,9 +2092,14 @@ async function saveHairLook() {
   if (!stage?.clientWidth) return;
   const style = hairStyleById(state.hair.styleId);
   const color = hairColorById(state.hair.colorId);
-  const hairCanvas = await tintedHairCanvas(style, color, { pushBack: Boolean(state.hair.pushBack), topScale: state.hair.topScale ?? 1 });
+  let previewBlob;
+  if (source.kind === "look") {
+    previewBlob = await recoloredLook(source.src, color).then((entry) => entry.blob)
+      .catch(() => fetch(source.src).then((response) => response.blob()));
+  } else {
+  const hairCanvas = await tintedHairCanvas(style, color, overlayOptions());
   const image = await loadImage(source.src);
-  const previewBlob = await flattenHairCanvas({
+  previewBlob = await flattenHairCanvas({
     photoImage: image,
     photoWidth: image.naturalWidth || image.width,
     photoHeight: image.naturalHeight || image.height,
@@ -2011,6 +2108,7 @@ async function saveHairLook() {
     stageWidth: stage.clientWidth,
     stageHeight: stage.clientHeight,
   });
+  }
   const look = {
     id: uid("look"),
     name: `${style.label} · ${color.label}`,
@@ -2308,6 +2406,16 @@ async function onClick(event) {
     } else if (action === "hair-audience") {
       state.hairAudience = button.dataset.id;
       state.hairGroup = "";
+      const model = hairLookModel();
+      if (model && modelAudience(model) !== button.dataset.id) {
+        const others = LOOK_MODELS.filter((item) => modelAudience(item) === button.dataset.id);
+        const next = others.find((item) => item.shape === model.shape) || others[0];
+        if (next) {
+          state.hair.modelId = next.id;
+          state.hair.styleId = hairStylesFor(button.dataset.id)[0].id;
+          persistHair();
+        }
+      }
       render();
     } else if (action === "hair-group") {
       state.hairGroup = button.dataset.id;

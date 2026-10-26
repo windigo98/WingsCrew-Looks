@@ -1,7 +1,8 @@
 /**
- * On-device hair overlays. Each style is one photo-real cutout (transparent WebP,
- * stored in neutral gray). Color is painted on at runtime with a gradient map, so
- * the strand highlights and shadows from the photo stay. No network calls.
+ * On-device hair. Practice models show finished portraits of each cut (made
+ * ahead of time, recolored on the phone). Your own photo gets an approximate
+ * overlay: a photo-real cutout bent to your head outline. Color is a gradient
+ * map, so strand highlights and shadows stay. No network calls.
  */
 
 /** Size of every hair image, in view units. The images are 1.5 px per unit. */
@@ -48,9 +49,9 @@ function style(id, label, file, group, extra = {}) {
 export const HAIR_STYLES = [
   style("bob", "Sleek Chin Bob", "bob", "medium", { for: ["women"], face: { crown: 80, allow: 0.04 } }),
   style("lob", "Italian Lob", "lob", "medium", { for: ["women"], face: { crown: 74, allow: 0.05 } }),
-  style("butterfly", "Butterfly Cut", "butterfly", "long", { bangs: true, for: ["women"], face: { crown: 13, allow: 0.1, dome: 0.75 } }),
+  style("butterfly", "Butterfly Cut", "butterfly", "long", { bangs: true, for: ["women"], face: { crown: 13, allow: 0.1 } }),
   style("straight", "Long Layers", "long-layers", "long", { for: ["women"], face: { crown: 90, allow: 0.04 } }),
-  style("blowout", "Bouncy Blowout", "blowout", "long", { for: ["women"], face: { crown: 9, allow: 0.14, dome: 0.7 } }),
+  style("blowout", "Bouncy Blowout", "blowout", "long", { for: ["women"], face: { crown: 9, allow: 0.14 } }),
   style("waves", "Beach Waves", "beach-waves", "long", { for: ["women"], face: { crown: 76, allow: 0.07 } }),
   style("silk", "Silk Press", "silk-press", "long", { for: ["women"], face: { crown: 76, allow: 0.03 } }),
   style("curls", "Defined Curls", "curls", "textured", { for: ["women"], face: { crown: 62, allow: 0.14 } }),
@@ -58,23 +59,23 @@ export const HAIR_STYLES = [
   style("ponytail", "Sleek High Ponytail", "ponytail", "up", { for: ["women"], face: { crown: 52, allow: 0.14 } }),
   style("bun", "High Bun / Chignon", "high-bun", "up", { for: ["women"], face: { crown: 33, allow: 0.3 } }),
   style("pixie", "Textured Pixie", "pixie", "short", { bangs: true, for: ["women"], face: { crown: 45, allow: 0.1 } }),
-  style("wolf", "Wolf Cut", "wolf", "medium", { bangs: true, for: ["women"], face: { crown: 13, allow: 0.12, dome: 0.7 } }),
+  style("wolf", "Wolf Cut", "wolf", "medium", { bangs: true, for: ["women"], face: { crown: 13, allow: 0.12 } }),
   style("afro", "Natural Afro", "afro", "textured", { for: ["women"], face: { crown: 4, allow: 0.36 } }),
   style("locs", "Shoulder Locs", "locs", "textured", { for: ["women", "men"], face: { crown: 90, allow: 0.06 } }),
-  style("shag", "Wispy Bangs Shag", "shag", "medium", { bangs: true, for: ["women"], face: { crown: 14, allow: 0.1, dome: 0.75 } }),
+  style("shag", "Wispy Bangs Shag", "shag", "medium", { bangs: true, for: ["women"], face: { crown: 14, allow: 0.1 } }),
   style("crop", "Low Taper + Textured Crop", "crop", "short", { bangs: true, for: ["men"], face: { top: 140, halfW: 84, crown: 81, allow: 0.07 } }),
-  style("buzz", "Buzz Cut", "buzz", "short", { for: ["men"], face: { crown: 69, allow: 0.04, dome: 0.75 } }),
+  style("buzz", "Buzz Cut", "buzz", "short", { for: ["men"], face: { crown: 69, allow: 0.04 } }),
   style("taper", "Classic Side Part", "taper", "short", { for: ["men"], face: { top: 138, crown: 77, allow: 0.08 } }),
-  style("comma", "Comma Hair", "comma", "medium", { bangs: true, for: ["men"], face: { crown: 75, allow: 0.06, dome: 0.45 } }),
-  style("twoblock", "Two-Block", "twoblock", "medium", { bangs: true, for: ["men"], face: { crown: 78, allow: 0.06, dome: 0.5 } }),
+  style("comma", "Comma Hair", "comma", "medium", { bangs: true, for: ["men"], face: { crown: 75, allow: 0.06 } }),
+  style("twoblock", "Two-Block", "twoblock", "medium", { bangs: true, for: ["men"], face: { crown: 78, allow: 0.06 } }),
   style("softwolf", "Soft Wolf Cut", "softwolf", "medium", { bangs: true, for: ["men"], face: { crown: 70, allow: 0.08 } }),
-  style("mullet", "Modern Mullet", "mullet", "medium", { bangs: true, for: ["men"], face: { crown: 77, allow: 0.06, dome: 0.5 } }),
-  style("flow", "Flow (Swept Back)", "flow", "medium", { for: ["men"], face: { crown: 75, allow: 0.06, dome: 0.45 } }),
+  style("mullet", "Modern Mullet", "mullet", "medium", { bangs: true, for: ["men"], face: { crown: 77, allow: 0.06 } }),
+  style("flow", "Flow (Swept Back)", "flow", "medium", { for: ["men"], face: { crown: 75, allow: 0.06 } }),
   style("fade", "High-Top Fade", "high-top-fade", "short", { for: ["men"], face: { top: 138, crown: 46, allow: 0.32 } }),
-  style("waves360", "360 Waves", "waves360", "short", { for: ["men"], face: { crown: 59, allow: 0.04, dome: 0.75 } }),
-  style("curlytop", "Curly Top + Taper", "curlytop", "textured", { bangs: true, for: ["men"], face: { crown: 65, allow: 0.12, dome: 0.5 } }),
-  style("twists", "Two-Strand Twists", "twists", "textured", { bangs: true, for: ["men"], face: { crown: 75, allow: 0.1, dome: 0.5 } }),
-  style("cornrows", "Stitch Braids", "cornrows", "textured", { for: ["men"], face: { crown: 52, allow: 0.05, dome: 0.7 } }),
+  style("waves360", "360 Waves", "waves360", "short", { for: ["men"], face: { crown: 59, allow: 0.04 } }),
+  style("curlytop", "Curly Top + Taper", "curlytop", "textured", { bangs: true, for: ["men"], face: { crown: 65, allow: 0.12 } }),
+  style("twists", "Two-Strand Twists", "twists", "textured", { bangs: true, for: ["men"], face: { crown: 75, allow: 0.1 } }),
+  style("cornrows", "Stitch Braids", "cornrows", "textured", { for: ["men"], face: { crown: 52, allow: 0.05 } }),
 ];
 
 export function hairStylesFor(audience) {
@@ -121,6 +122,33 @@ export const HAIR_MODELS = FACE_SHAPES.flatMap((shape) =>
   })),
 );
 
+/**
+ * Finished portraits: each practice model wearing each cut from their set, in a
+ * neutral medium brown (recolored on the phone). Models with no portraits yet are
+ * left out of the picker.
+ */
+const WOMEN_LOOKS = ["bob", "lob", "butterfly", "straight", "blowout", "waves", "silk", "curls", "braids", "ponytail", "bun", "pixie", "wolf", "afro", "locs", "shag"];
+const MEN_LOOKS = ["crop", "buzz", "taper", "comma", "twoblock", "softwolf", "mullet", "flow", "fade", "waves360", "curlytop", "twists", "cornrows", "locs"];
+export const HAIR_LOOKS = {
+  "oval-woman": WOMEN_LOOKS,
+  "round-woman": WOMEN_LOOKS,
+  "oval-man": MEN_LOOKS,
+  "square-man": MEN_LOOKS,
+};
+
+/** Practice models that have portraits, in picker order. */
+export const LOOK_MODELS = HAIR_MODELS.filter((model) => HAIR_LOOKS[model.id]);
+
+/** "women" or "men" for a model. */
+export function modelAudience(model) {
+  return model?.id?.endsWith("-man") ? "men" : "women";
+}
+
+/** The portrait of a model wearing a style, or null when there isn't one. */
+export function hairLookSrc(modelId, styleId) {
+  return HAIR_LOOKS[modelId]?.includes(styleId) ? `assets/looks/${modelId}/${styleId}.webp` : null;
+}
+
 export function hairModelById(id) {
   return HAIR_MODELS.find((model) => model.id === id) || null;
 }
@@ -148,7 +176,8 @@ export function defaultHairPlacement() {
     stretchY: 1,
     lift: 0,
     pushBack: false,
-    topScale: 1,
+    crown: 1,
+    contour: null,
     fitFor: "",
   };
 }
@@ -233,22 +262,26 @@ export const FACE_POINTS = {
   right: 454,
   eyeLeft: 33,
   eyeRight: 263,
+  top: 10,
 };
+
+/** The Face Mesh outline (forehead, temples, cheeks, jaw), clockwise from the top. */
+export const FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
 
 /** Pick the fitting points out of a full landmark list ({x, y} in 0..1 of the image). */
 export function facePointsFromLandmarks(landmarks) {
   if (!Array.isArray(landmarks) || landmarks.length < 468) return null;
+  const ok = (point) => point && Number.isFinite(point.x) && Number.isFinite(point.y);
   const out = {};
   for (const [name, index] of Object.entries(FACE_POINTS)) {
     const point = landmarks[index];
-    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+    if (!ok(point)) return null;
     out[name] = { x: point.x, y: point.y };
   }
+  const oval = FACE_OVAL.map((index) => landmarks[index]);
+  if (oval.every(ok)) out.oval = oval.map((point) => ({ x: point.x, y: point.y }));
   return out;
 }
-
-/** How wide the cheek opening is compared with the 234–454 landmark span. */
-const FIT_WIDTH = 0.94;
 
 /**
  * Head proportions, as a share of the brow-to-chin length (landmark 9 to 152),
@@ -257,20 +290,20 @@ const FIT_WIDTH = 0.94;
  */
 export const HEAD = { hairline: 0.38, skull: 0.58 };
 
-/** Height may differ from width by this much (keeps the style's own shape). */
-export const FIT_ASPECT = 0.08;
+/** Angles sampled around the face for the head outline (the warp follows it). */
+export const CONTOUR_STEPS = 48;
 
-/** Least the hair above the hairline is squeezed down to (1 = untouched). */
-export const MIN_TOP_SCALE = 0.3;
-
-/** How much a fully squeezed dome narrows at its top, so it stays round. */
-const DOME_TAPER = 0.35;
+/** Least the hair above the head may be thinned to (1 = untouched). */
+export const MIN_CROWN = 0.45;
 
 /**
- * Turn face points (0..1 of the image) into a placement for one style. Width
- * comes from the cheeks; height follows within ±8%; the hair above the hairline
- * is squeezed (`topScale`) so the crown sits just above the real top of the
- * skull instead of high above it. Returns null when the face looks unusable.
+ * Turn face points (0..1 of the image) into a placement for one style.
+ * Size comes from the head (hairline to chin), not the cheeks, so short cuts are
+ * no wider than the head. `contour` is the head outline in the style's view units
+ * (radius per angle around the face center); the hair is warped so its inner edge
+ * hugs that outline and its volume follows the skull. `crown` thins the hair above
+ * the head so it rises a natural amount over the real skull, as a dome. Returns
+ * null when the face looks unusable.
  */
 export function fitHairToFace(points, { imageW, imageH, stageW, stageH }, styleEntry) {
   if (!points || !imageW || !imageH || !stageW || !stageH) return null;
@@ -290,66 +323,127 @@ export function fitHairToFace(points, { imageW, imageH, stageW, stageH }, styleE
   if (!(browChin > 4) || !(faceWidth > 4)) return null;
   const face = { ...OPENING, ...(styleEntry?.face || {}) };
   const base = (Math.min(stageW, stageH) * 0.86) / HAIR_BASE_UNITS;
-  // Width: the opening spans the cheeks.
-  const sx = (faceWidth * FIT_WIDTH) / (2 * face.halfW);
-  // Height: hairline to chin, kept within ±8% of the width scale.
-  const wantY = (browChin * (1 + HEAD.hairline)) / (face.chin - face.top);
-  const sy = Math.max(sx * (1 - FIT_ASPECT), Math.min(sx * (1 + FIT_ASPECT), wantY));
-  const scale = Math.max(0.3, Math.min(3, sx / base));
-  const used = scale * base;
-  const stretchY = Math.max(0.5, Math.min(1.5, sy / used));
-  const syUsed = used * stretchY;
-  // Center the opening between the hairline and the chin.
+  // Size: the style's opening spans hairline to chin.
+  const used = (browChin * (1 + HEAD.hairline)) / (face.chin - face.top);
+  const scale = Math.max(0.3, Math.min(3, used / base));
+  const unit = scale * base;
   const hairlineAbove = browChin * HEAD.hairline;
   const mid = (dot(brow, down) - hairlineAbove + dot(chin, down)) / 2;
   const openMid = (face.top + face.chin) / 2;
-  const centerDown = mid + (HAIR_FACE.cy - openMid) * syUsed;
+  const centerDown = mid + (HAIR_FACE.cy - openMid) * unit;
   const centerAlong = dot(brow, along);
   const center = {
     x: along.x * centerAlong + down.x * centerDown,
     y: along.y * centerAlong + down.y * centerDown,
   };
-  // Crown: squeeze the hair above the opening so it tops out just over the skull.
-  const holeTopDown = centerDown + (face.top - HAIR_FACE.cy) * syUsed;
-  const crownDown = dot(brow, down) - browChin * (HEAD.skull + face.allow);
-  const wantAbove = (holeTopDown - crownDown) / syUsed; // view units from opening top to crown
-  const topScale = squeezeFor(face.top - face.crown, wantAbove);
+  // Stage px -> the style's view units (upright, face center at HAIR_FACE).
+  const toView = (p) => {
+    const d = sub(p, center);
+    return { x: HAIR_FACE.cx + dot(d, along) / unit, y: HAIR_FACE.cy + dot(d, down) / unit };
+  };
+  const browView = toView(brow);
+  const outline = points.oval?.length >= 12
+    ? points.oval.map((p) => toView(at(p)))
+    : defaultOutline(face, faceWidth / (2 * unit));
+  const contour = headContour(outline, browView.y, face.top);
+  // Crown: how far hair may rise above the hairline (skull + the style's allowance).
+  const wantAbove = (browChin * (HEAD.skull - HEAD.hairline + face.allow)) / unit;
+  const haveAbove = face.top - face.crown;
+  const crown = haveAbove > 1 ? Math.max(MIN_CROWN, Math.min(1, wantAbove / haveAbove)) : 1;
   return {
     x: center.x / stageW,
     y: center.y / stageH,
     scale,
     rotation: (theta * 180) / Math.PI,
     stretchX: 1,
-    stretchY,
-    topScale: Math.round(topScale * 50) / 50,
+    stretchY: 1,
+    crown: Math.round(crown * 50) / 50,
+    contour,
   };
 }
 
-/** Band (view units) over which the squeeze eases in above the opening. */
-export const SQUEEZE_BAND = 28;
-
-/** The squeeze that brings a crown `have` units above the opening down to `want`. */
-export function squeezeFor(have, want) {
-  if (!(have > 1) || !(want < have)) return 1;
-  const band = Math.min(SQUEEZE_BAND, have);
-  const c = (want - band / 2) / (band / 2 + (have - band));
-  return Math.round(Math.max(MIN_TOP_SCALE, Math.min(1, c)) * 50) / 50;
+/** An oval outline (view units) used when the full mesh isn't available. */
+function defaultOutline(face, halfW) {
+  const out = [];
+  for (let i = 0; i < 36; i += 1) {
+    const a = (i / 36) * Math.PI * 2;
+    const ry = Math.sin(a) < 0 ? HAIR_FACE.cy - face.top : face.chin - HAIR_FACE.cy;
+    out.push({ x: HAIR_FACE.cx + Math.cos(a) * halfW, y: HAIR_FACE.cy + Math.sin(a) * ry });
+  }
+  return out;
 }
 
 /**
- * Where a source row (image px, 0 at the top) lands after the top squeeze. Rows
- * below the opening's top stay put; above it they are packed down by `topScale`,
- * easing in over a soft band so strands don't kink.
+ * Radius of the head outline at CONTOUR_STEPS angles around HAIR_FACE (angle 0
+ * points right, angles grow clockwise on screen, so 3/4 turn is straight up). The
+ * mesh stops below the hairline, so the part above the brow is raised to reach it.
  */
-export function squeezeRow(y, topY, band, topScale) {
-  const c = Math.max(MIN_TOP_SCALE, Math.min(1, topScale));
-  if (c >= 1 || y >= topY) return y;
-  const start = topY - band;
-  if (y >= start) {
-    const t = y - start;
-    return topY - ((topY - y) * c + ((1 - c) * (band * band - t * t)) / (2 * band));
+export function headContour(outline, browY, hairlineY) {
+  const top = Math.min(...outline.map((p) => p.y));
+  const lift = top < browY - 1 && hairlineY < top ? (browY - hairlineY) / (browY - top) : 1;
+  const pts = outline.map((p) => (p.y < browY ? { x: p.x, y: browY - (browY - p.y) * lift } : p));
+  const radii = [];
+  for (let i = 0; i < CONTOUR_STEPS; i += 1) {
+    const a = (i / CONTOUR_STEPS) * Math.PI * 2;
+    const dir = { x: Math.cos(a), y: Math.sin(a) };
+    let best = 0;
+    for (let j = 0; j < pts.length; j += 1) {
+      const p = pts[j];
+      const q = pts[(j + 1) % pts.length];
+      const r = rayHit(dir, { x: p.x - HAIR_FACE.cx, y: p.y - HAIR_FACE.cy }, { x: q.x - HAIR_FACE.cx, y: q.y - HAIR_FACE.cy });
+      if (r > best) best = r;
+    }
+    radii.push(Math.round((best || HAIR_FACE.rx) * 2) / 2);
   }
-  return topY - (band * (1 + c)) / 2 - (start - y) * c;
+  return radii;
+}
+
+function rayHit(dir, p, q) {
+  const ex = q.x - p.x;
+  const ey = q.y - p.y;
+  const den = dir.x * ey - dir.y * ex;
+  if (Math.abs(den) < 1e-9) return 0;
+  const t = (p.x * ey - p.y * ex) / den;
+  const u = (p.x * dir.y - p.y * dir.x) / den;
+  return t > 0 && u >= -1e-6 && u <= 1 + 1e-6 ? t : 0;
+}
+
+/** Radius of a style's own face opening at angle `a` (view units). */
+export function openingRadius(face, a) {
+  const rx = face.halfW;
+  const ry = Math.sin(a) < 0 ? HAIR_FACE.cy - face.top : face.chin - HAIR_FACE.cy;
+  const c = Math.cos(a) / rx;
+  const s = Math.sin(a) / ry;
+  return 1 / Math.sqrt(c * c + s * s);
+}
+
+/** Contour radius at any angle, read off the sampled ring. */
+export function contourRadius(contour, a) {
+  const n = contour.length;
+  const f = ((((a / (Math.PI * 2)) * n) % n) + n) % n;
+  const i = Math.floor(f);
+  const t = f - i;
+  return contour[i] * (1 - t) + contour[(i + 1) % n] * t;
+}
+
+/**
+ * Where an output point (view units) reads from in the style image. Inside the
+ * head the opening is scaled onto the outline; outside, the hair keeps its
+ * thickness but starts at the outline, and above the head it is thinned by
+ * `crown` (fading to none at ear level) so the top stays a rounded dome.
+ */
+export function warpSource(x, y, face, contour, crown = 1) {
+  const dx = x - HAIR_FACE.cx;
+  const dy = y - HAIR_FACE.cy;
+  const r = Math.hypot(dx, dy);
+  if (r < 1e-6) return { x, y };
+  const a = Math.atan2(dy, dx);
+  const rHead = contourRadius(contour, a);
+  const rOpen = openingRadius(face, a);
+  const up = Math.max(0, -dy / r);
+  const c = 1 - (1 - crown) * up * up;
+  const rs = r <= rHead ? (r * rOpen) / rHead : rOpen + (r - rHead) / c;
+  return { x: HAIR_FACE.cx + (dx / r) * rs, y: HAIR_FACE.cy + (dy / r) * rs };
 }
 
 export function containRect(boxW, boxH, imageW, imageH) {
@@ -391,39 +485,63 @@ export function pushBackOval(width, height, styleEntry) {
   return { cx: HAIR_FACE.cx * k, cy, rx, ry: cy - top, feather: 16 * k, height };
 }
 
-/** Pack the hair above the opening down (see squeezeRow). Browser only. */
-function squeezeTop(source, styleEntry, topScale) {
-  const k = source.width / HAIR_VIEW_W;
+/**
+ * Bend the hair so its inner edge follows a head outline (see warpSource).
+ * Works on whole pixels with bilinear sampling. Browser only.
+ */
+function warpToHead(source, styleEntry, contour, crown) {
   const face = { ...OPENING, ...(styleEntry?.face || {}) };
-  const topY = face.top * k;
-  const band = Math.min(SQUEEZE_BAND, face.top - face.crown) * k;
-  const crownY = face.crown * k;
-  const cx = HAIR_FACE.cx * k;
+  const w = source.width;
+  const h = source.height;
+  const k = w / HAIR_VIEW_W;
+  const src = source.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, w, h).data;
   const out = document.createElement("canvas");
-  out.width = source.width;
-  out.height = source.height;
+  out.width = w;
+  out.height = h;
   const ctx = out.getContext("2d");
-  ctx.imageSmoothingQuality = "high";
-  const rows = Math.ceil(topY);
-  ctx.drawImage(source, 0, rows, source.width, source.height - rows, 0, rows, source.width, source.height - rows);
-  const step = 2;
-  for (let y = 0; y < rows; y += step) {
-    const y1 = Math.min(rows, y + step);
-    const d0 = squeezeRow(y, topY, band, topScale);
-    const d1 = squeezeRow(y1, topY, band, topScale);
-    // Round the dome: rows high above the opening pull in a little toward the middle.
-    const rise = Math.max(0, Math.min(1, (topY - y) / Math.max(1, topY - crownY)));
-    const narrow = 1 - (face.dome ?? DOME_TAPER) * (1 - topScale) * rise ** 1.6;
-    const w = source.width * narrow;
-    ctx.drawImage(source, 0, y, source.width, y1 - y, cx - cx * narrow, d0, w, Math.max(0.5, d1 - d0 + 0.35));
+  const image = ctx.createImageData(w, h);
+  const dst = image.data;
+  for (let py = 0; py < h; py += 1) {
+    for (let px = 0; px < w; px += 1) {
+      const s = warpSource((px + 0.5) / k, (py + 0.5) / k, face, contour, crown);
+      const sx = s.x * k - 0.5;
+      const sy = s.y * k - 0.5;
+      if (sx < 0 || sy < 0 || sx >= w - 1 || sy >= h - 1) continue;
+      const x0 = sx | 0;
+      const y0 = sy | 0;
+      const fx = sx - x0;
+      const fy = sy - y0;
+      const i00 = (y0 * w + x0) * 4;
+      const i10 = i00 + 4;
+      const i01 = i00 + w * 4;
+      const i11 = i01 + 4;
+      const w00 = (1 - fx) * (1 - fy);
+      const w10 = fx * (1 - fy);
+      const w01 = (1 - fx) * fy;
+      const w11 = fx * fy;
+      const a = src[i00 + 3] * w00 + src[i10 + 3] * w10 + src[i01 + 3] * w01 + src[i11 + 3] * w11;
+      if (a < 0.5) continue;
+      const o = (py * w + px) * 4;
+      for (let c = 0; c < 3; c += 1) {
+        // Premultiplied blend so transparent edges don't darken.
+        dst[o + c] = (src[i00 + c] * src[i00 + 3] * w00 + src[i10 + c] * src[i10 + 3] * w10
+          + src[i01 + c] * src[i01 + 3] * w01 + src[i11 + c] * src[i11 + 3] * w11) / a;
+      }
+      dst[o + 3] = a;
+    }
   }
+  ctx.putImageData(image, 0, 0);
   return out;
 }
 
-/** A canvas with the style painted in the color. Cached per style, color, push-back, and squeeze. Browser only. */
-export async function tintedHairCanvas(styleEntry, color, { pushBack = false, topScale = 1 } = {}) {
-  const squeeze = Math.max(MIN_TOP_SCALE, Math.min(1, Math.round((Number(topScale) || 1) * 50) / 50));
-  const key = `${styleEntry.src}|${color.id}|${pushBack ? 1 : 0}|${squeeze}`;
+/**
+ * A canvas with the style painted in the color, bent to the head when a contour
+ * is given. Cached per style, color, push-back, and head shape. Browser only.
+ */
+export async function tintedHairCanvas(styleEntry, color, { pushBack = false, contour = null, crown = 1 } = {}) {
+  const ring = Array.isArray(contour) && contour.length === CONTOUR_STEPS ? contour : null;
+  const thin = ring ? Math.max(MIN_CROWN, Math.min(1, Number(crown) || 1)) : 1;
+  const key = `${styleEntry.src}|${color.id}|${pushBack ? 1 : 0}|${ring ? ring.join(",") : "-"}|${thin}`;
   if (tintCache.has(key)) return tintCache.get(key);
   const image = await loadHairImage(styleEntry.src);
   let canvas = document.createElement("canvas");
@@ -434,10 +552,6 @@ export async function tintedHairCanvas(styleEntry, color, { pushBack = false, to
   const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
   tintHairPixels(pixels.data, hairColorLut(color));
   ctx.putImageData(pixels, 0, 0);
-  if (squeeze < 1) {
-    canvas = squeezeTop(canvas, styleEntry, squeeze);
-    ctx = canvas.getContext("2d");
-  }
   if (pushBack) {
     const oval = pushBackOval(canvas.width, canvas.height, styleEntry);
     ctx.save();
@@ -457,6 +571,7 @@ export async function tintedHairCanvas(styleEntry, color, { pushBack = false, to
     ctx.fill();
     ctx.restore();
   }
+  if (ring) canvas = warpToHead(canvas, styleEntry, ring, thin);
   canvas.className = "hair-art";
   if (tintCache.size > 24) tintCache.delete(tintCache.keys().next().value);
   tintCache.set(key, canvas);
@@ -496,4 +611,45 @@ export async function flattenHairCanvas({
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
   if (!blob) throw new Error("Could not save that hair.");
   return blob;
+}
+
+/**
+ * Recolor the hair in a portrait, in place. `mask` is the hair confidence (0..1)
+ * per pixel. Brightness inside the hair is stretched over the color's gradient
+ * map, so strands keep their light and shade in any of the colors, and the mask
+ * blends the edges.
+ */
+export function recolorHairPixels(data, mask, lut) {
+  const n = Math.min(mask.length, data.length / 4);
+  const hist = new Uint32Array(256);
+  let count = 0;
+  for (let i = 0; i < n; i += 1) {
+    if (mask[i] < 0.5) continue;
+    const o = i * 4;
+    hist[Math.round(0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2])] += 1;
+    count += 1;
+  }
+  if (!count) return data;
+  const pick = (share) => {
+    let seen = 0;
+    for (let v = 0; v < 256; v += 1) {
+      seen += hist[v];
+      if (seen >= share * count) return v;
+    }
+    return 255;
+  };
+  const lo = pick(0.03);
+  const hi = Math.max(lo + 8, pick(0.97));
+  for (let i = 0; i < n; i += 1) {
+    const m = mask[i];
+    if (m <= 0.02) continue;
+    const a = m >= 0.98 ? 1 : m * m * (3 - 2 * m);
+    const o = i * 4;
+    const y = 0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2];
+    const step = Math.max(0, Math.min(255, Math.round(((y - lo) / (hi - lo)) * 255))) * 3;
+    data[o] += (lut[step] - data[o]) * a;
+    data[o + 1] += (lut[step + 1] - data[o + 1]) * a;
+    data[o + 2] += (lut[step + 2] - data[o + 2]) * a;
+  }
+  return data;
 }

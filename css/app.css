@@ -613,6 +613,18 @@ body.in-studio.sheet-open .toast {
   color: var(--ink-soft);
   font-size: 14px;
 }
+.hair-badge {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  z-index: 2;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--ink-soft);
+  font-size: 12px;
+  pointer-events: none;
+}
 .hair-overlay {
   position: absolute;
   pointer-events: none;
