@@ -17,6 +17,7 @@ import {
   HAIR_GROUPS,
   HAIR_LIFT_RANGE,
   LOOK_MODELS,
+  POSE_MESSAGE,
   defaultHairPlacement,
   fitHairToFace,
   flattenHairCanvas,
@@ -28,10 +29,11 @@ import {
   hairStyleById,
   hairStylesFor,
   modelAudience,
+  poseGuard,
   recolorHairPixels,
   tintedHairCanvas,
-} from "./hair.js?v=17";
-import { detectFace, hairMask } from "./face-fit.js?v=17";
+} from "./hair.js?v=18";
+import { detectFace, hairMask } from "./face-fit.js?v=18";
 
 const NAV = [
   ["dress", "Dress", icon("dress")],
@@ -1707,6 +1709,9 @@ function hairState() {
     lift: hair.lift || 0,
     pushBack: Boolean(hair.pushBack),
     fitFor: hair.fitFor || "",
+    pose: hair.pose && Number.isFinite(hair.pose.yaw) ? { yaw: hair.pose.yaw, roll: hair.pose.roll } : null,
+    poseFor: hair.poseFor || "",
+    poseShown: hair.poseShown || "",
   };
 }
 
@@ -1766,9 +1771,10 @@ function hairHtml() {
       ${source ? `<img class="hair-photo" id="hair-photo" alt="" src="${escapeHtml(source.src)}">` : `<p class="hair-empty">Add a photo, or pick a model.</p>`}
       ${isLook ? "" : `<div id="hair-overlay" class="hair-overlay"></div>`}
       ${source && !isLook ? `<span class="hair-badge">Approximate preview</span>` : ""}
+      ${source && !isLook ? hairPoseGuardHtml(source) : ""}
     </div>
-    ${isLook ? `<p class="hint hair-tip" id="hair-fit-note" aria-live="polite">${escapeHtml(state.hairFit.note || "A finished preview of this cut on a made-up model.")}</p>` : `
-    <p class="hint hair-tip" id="hair-fit-note" aria-live="polite">${escapeHtml(state.hairFit.note || "Drag to move. Pinch to size and turn.")}</p>
+    ${isLook ? `<p class="hint hair-tip" id="hair-fit-note" aria-live="polite" data-status="${escapeHtml(state.hairFit.status || "")}">${escapeHtml(state.hairFit.note || "A finished preview of this cut on a made-up model.")}</p>` : `
+    <p class="hint hair-tip" id="hair-fit-note" aria-live="polite" data-status="${escapeHtml(state.hairFit.status || "")}">${escapeHtml(state.hairFit.note || "Drag to move. Pinch to size and turn.")}</p>
     <div class="row hair-fit-row">
       <button type="button" class="btn small" data-action="hair-fit" ${source ? "" : "disabled"}>Fit to face</button>
       <button type="button" class="btn ghost small hair-toggle" data-action="hair-pushback" aria-pressed="${state.hair.pushBack ? "true" : "false"}">${style.bangs ? "Push bangs back" : "Push hair back"}</button>
@@ -1811,6 +1817,49 @@ function hairHtml() {
     <button type="button" class="btn full" data-action="hair-save" style="margin-top:12px" ${source ? "" : "disabled"}>Save</button>
     ${footerHtml()}
   </section>`;
+}
+
+/**
+ * Straight-on guard: on a turned or tilted head the overlay slides off, so it
+ * isn't drawn; a friendly card asks for a straight-on photo, with Show anyway.
+ * `pending` is true while the face is still being found (nothing drawn yet).
+ */
+function hairPoseState(source = hairSource()) {
+  if (!source || source.kind === "look") return { blocked: false, pending: false, guard: poseGuard(null) };
+  const known = state.hair.poseFor === source.key;
+  const guard = poseGuard(known ? state.hair.pose : null);
+  const shown = state.hair.poseShown === source.key;
+  return { blocked: known && !guard.ok && !shown, pending: !known, shownAnyway: known && !guard.ok && shown, guard };
+}
+
+function hairPoseGuardHtml(source) {
+  const pose = hairPoseState(source);
+  return `<div class="hair-pose-guard" id="hair-pose-guard" role="status" ${pose.blocked ? "" : "hidden"}>
+        <p>${escapeHtml(POSE_MESSAGE)}</p>
+        <button type="button" class="btn ghost small" data-action="hair-pose-show">Show anyway</button>
+      </div>`;
+}
+
+function applyHairPoseGuard() {
+  const source = hairSource();
+  const pose = hairPoseState(source);
+  const overlay = document.getElementById("hair-overlay");
+  const card = document.getElementById("hair-pose-guard");
+  if (overlay) {
+    overlay.hidden = pose.blocked;
+    overlay.classList.toggle("pending", pose.pending);
+  }
+  if (card) card.hidden = !pose.blocked;
+  document.getElementById("hair-stage")?.classList.toggle("posed-off", pose.blocked);
+  return pose;
+}
+
+/** The note under the stage once the face is found. */
+function hairPoseNote(pose) {
+  if (pose.blocked) return { note: "Hair is hidden because your head is turned or tilted. Tap Show anyway to see it.", status: "pose" };
+  if (pose.shownAnyway) return { note: "Showing anyway. On a turned or tilted head the hair won't sit quite right.", status: "pose" };
+  if (pose.guard.level === "slight") return { note: pose.guard.message, status: "fit" };
+  return null;
 }
 
 function bindHairStage() {
@@ -1917,12 +1966,14 @@ function mountHairArt() {
     return;
   }
   applyHairTransform();
+  applyHairPoseGuard();
   tintedHairCanvas(style, color, overlayOptions()).then((canvas) => {
     if (token !== hairArtToken || parseRoute().path !== "hair") return;
     const overlay = document.getElementById("hair-overlay");
     if (!overlay) return;
     overlay.replaceChildren(canvas);
     applyHairTransform();
+    applyHairPoseGuard();
   }).catch((error) => showToast(error.message || "Could not draw that hair."));
   if (source && state.hair.fitFor !== `${source.key}|${style.id}`) autoFitHair({ quiet: true });
 }
@@ -2032,9 +2083,13 @@ async function autoFitHair({ quiet = false, resetLift = false } = {}) {
     const keep = { lift: resetLift ? 0 : state.hair.lift || 0, pushBack: state.hair.pushBack };
     const shapeKey = () => `${(state.hair.contour || []).join(",")}|${(state.hair.faceContour || []).join(",")}|${state.hair.crownTop || 0}`;
     const prevShape = shapeKey();
+    state.hair.pose = face?.pose ? { yaw: face.pose.yaw, roll: face.pose.roll } : null;
+    state.hair.poseFor = source.key;
     if (placement) {
       state.hair = { ...state.hair, ...placement, ...keep, fitFor: fitKey };
-      setHairFitNote("Fitted to your head. It's an approximate preview: drag or use Hairline to fine-tune.", "fit");
+      const poseNote = hairPoseNote(hairPoseState(source));
+      if (poseNote) setHairFitNote(poseNote.note, poseNote.status);
+      else setHairFitNote("Fitted to your head. It's an approximate preview: drag or use Hairline to fine-tune.", "fit");
     } else {
       const base = defaultHairPlacement();
       state.hair = { ...state.hair, x: base.x, y: base.y, scale: base.scale, rotation: 0, stretchX: 1, stretchY: 1, crownTop: 0, yaw: 0, contour: null, faceContour: null, ...keep, fitFor: fitKey };
@@ -2043,6 +2098,7 @@ async function autoFitHair({ quiet = false, resetLift = false } = {}) {
     }
     syncHairSliders();
     applyHairTransform();
+    applyHairPoseGuard();
     // The hair is bent to the head outline, which needs a fresh drawing.
     if (shapeKey() !== prevShape) mountHairArt();
     persistHair();
@@ -2050,6 +2106,9 @@ async function autoFitHair({ quiet = false, resetLift = false } = {}) {
   } catch (error) {
     if (token !== hairFitToken) return false;
     state.hair.fitFor = fitKey;
+    state.hair.pose = null;
+    state.hair.poseFor = source.key;
+    applyHairPoseGuard();
     setHairFitNote("Auto-fit isn't available here. Drag the hair into place.", "error");
     if (!quiet) showToast(error.message || "Could not fit the hair.");
     return false;
@@ -2100,6 +2159,10 @@ async function saveHairLook() {
   const source = hairSource();
   if (!source) {
     showToast("Add a photo or pick a model first.");
+    return;
+  }
+  if (hairPoseState(source).blocked) {
+    showToast("Tap Show anyway to save with the hair, or use a straight-on photo.");
     return;
   }
   const photo = hairPhoto();
@@ -2437,6 +2500,14 @@ async function onClick(event) {
       render();
     } else if (action === "hair-model") useHairModel(button.dataset.id);
     else if (action === "hair-fit") await autoFitHair({ resetLift: true });
+    else if (action === "hair-pose-show") {
+      const source = hairSource();
+      if (source) state.hair.poseShown = source.key;
+      const pose = applyHairPoseGuard();
+      const poseNote = hairPoseNote(pose);
+      if (poseNote) setHairFitNote(poseNote.note, poseNote.status);
+      persistHair();
+    }
     else if (action === "hair-pushback") {
       state.hair.pushBack = !state.hair.pushBack;
       button.setAttribute("aria-pressed", state.hair.pushBack ? "true" : "false");

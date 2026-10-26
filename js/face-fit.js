@@ -3,7 +3,7 @@
  * MediaPipe FaceLandmarker and hair ImageSegmenter on first use. Nothing leaves
  * the phone.
  */
-import { facePointsFromLandmarks } from "./hair.js?v=17";
+import { facePointsFromLandmarks, headPose } from "./hair.js?v=18";
 
 const BASE = new URL("../assets/vendor/mediapipe/", import.meta.url).href;
 const FILESET = {
@@ -23,6 +23,7 @@ export function loadFaceLandmarker() {
         baseOptions: { modelAssetPath: `${BASE}face_landmarker.task`, delegate: "CPU" },
         runningMode: "IMAGE",
         numFaces: 1,
+        outputFacialTransformationMatrixes: true,
       });
     })().catch((error) => {
       landmarkerPromise = null;
@@ -33,8 +34,9 @@ export function loadFaceLandmarker() {
 }
 
 /**
- * Find the face in a loaded image. Returns { points, imageW, imageH } or null when
- * there is no face. `key` caches the answer per photo revision.
+ * Find the face in a loaded image. Returns { points, imageW, imageH, pose } or
+ * null when there is no face. `pose` is the head's yaw and roll in degrees, from
+ * the landmarker's facial transformation matrix (see headPose). `key` caches the answer per photo revision.
  */
 export async function detectFace(image, key) {
   if (key && results.has(key)) return results.get(key);
@@ -43,7 +45,9 @@ export async function detectFace(image, key) {
   const points = facePointsFromLandmarks(result?.faceLandmarks?.[0]);
   const imageW = image.naturalWidth || image.width;
   const imageH = image.naturalHeight || image.height;
-  const answer = points ? { points, imageW, imageH, landmarks: result.faceLandmarks[0] } : null;
+  const matrix = result?.facialTransformationMatrixes?.[0]?.data;
+  const pose = points ? headPose(result.faceLandmarks[0], { imageW, imageH, matrix: matrix ? Array.from(matrix) : null }) : null;
+  const answer = points ? { points, imageW, imageH, landmarks: result.faceLandmarks[0], pose } : null;
   if (key) results.set(key, answer);
   return answer;
 }

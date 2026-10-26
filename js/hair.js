@@ -299,6 +299,9 @@ export function defaultHairPlacement() {
     crownTop: 0,
     contour: null,
     fitFor: "",
+    pose: null,
+    poseFor: "",
+    poseShown: "",
   };
 }
 
@@ -409,6 +412,98 @@ export function facePointsFromLandmarks(landmarks) {
   const oval = FACE_OVAL.map((index) => landmarks[index]);
   if (oval.every(ok)) out.oval = oval.map((point) => ({ x: point.x, y: point.y }));
   return out;
+}
+
+/**
+ * Straight-on guard for the overlay on your own photo. A flat hair cutout only
+ * sits right on a head that faces the camera: past these angles (degrees) the
+ * hair slides off and bare scalp or a dark cap shows, so the app asks for a
+ * straight-on photo instead (with a "Show anyway" escape). Below `ease` the head
+ * counts as straight; between `ease` and the limit it is drawn with a gentle
+ * tip. Tuned on the twelve models (all under 4 degrees) and the tilted test faces.
+ */
+export const POSE_LIMITS = { yaw: 12, roll: 10 };
+export const POSE_EASE = { yaw: 7, roll: 6 };
+
+export const POSE_MESSAGE = "For the best hair preview, use a photo where you're facing the camera, head straight.";
+
+const deg = (rad) => (rad * 180) / Math.PI;
+const round1 = (v) => Math.round(v * 10) / 10;
+
+/**
+ * Head yaw (turn, + = toward the right of the picture), roll (tilt in the
+ * picture, + = clockwise) and pitch, in degrees. `matrix` is the Face
+ * Landmarker's 4x4 facial transformation matrix (column-major, 16 numbers); it
+ * gives the true 3D turn. Without it, yaw comes from the depth (z) of the two
+ * cheek landmarks, and failing that from where the nose tip sits between the
+ * cheeks. Roll is the eye line in the picture, the same angle the overlay turns
+ * by. `landmarks` is the full mesh or the fitting points ({x, y, z?} in 0..1).
+ */
+export function headPose(landmarks, { imageW = 1, imageH = 1, matrix = null } = {}) {
+  const pick = (name) => (Array.isArray(landmarks) ? landmarks[FACE_POINTS[name]] : landmarks?.[name]);
+  const ok = (p) => p && Number.isFinite(p.x) && Number.isFinite(p.y);
+  const eyeL = pick("eyeLeft");
+  const eyeR = pick("eyeRight");
+  const left = pick("left");
+  const right = pick("right");
+  const nose = pick("nose");
+  if (![eyeL, eyeR, left, right].every(ok)) return null;
+  const W = imageW || 1;
+  const H = imageH || 1;
+  const roll = deg(Math.atan2((eyeR.y - eyeL.y) * H, (eyeR.x - eyeL.x) * W));
+  let yaw = null;
+  let pitch = 0;
+  let source = "nose";
+  if (Array.isArray(matrix) && matrix.length >= 16 && matrix.every(Number.isFinite)) {
+    // Third column of the rotation: where the face points.
+    const fx = matrix[8];
+    const fy = matrix[9];
+    const fz = matrix[10];
+    if (Math.hypot(fx, fy, fz) > 1e-6) {
+      yaw = deg(Math.atan2(fx, fz));
+      pitch = deg(Math.atan2(-fy, Math.hypot(fx, fz)));
+      source = "matrix";
+    }
+  }
+  if (yaw === null && Number.isFinite(left.z) && Number.isFinite(right.z)) {
+    const dx = (right.x - left.x) * W;
+    const dy = (right.y - left.y) * H;
+    yaw = deg(Math.atan2((right.z - left.z) * W, Math.hypot(dx, dy)));
+    source = "depth";
+  }
+  if (yaw === null) {
+    // The nose tip stands out from the face, so it drifts toward the turn.
+    const along = { x: (right.x - left.x) * W, y: (right.y - left.y) * H };
+    const width = Math.hypot(along.x, along.y);
+    const share = ok(nose) && width > 0
+      ? (((nose.x - left.x) * W * along.x + (nose.y - left.y) * H * along.y) / (width * width) - 0.5) * 2
+      : 0;
+    yaw = deg(Math.atan(share * NOSE_YAW));
+  }
+  return { yaw: round1(yaw), roll: round1(roll), pitch: round1(pitch), source };
+}
+
+/** Nose offset (share of half the face width) to tan(yaw), measured on the test faces. */
+const NOSE_YAW = 0.75;
+
+/**
+ * Should the overlay be drawn on this head? `level` is "straight", "slight"
+ * (drawn, with a tip), or "turned" / "tilted" / "turned-tilted" (not drawn
+ * unless the person taps Show anyway). No pose (no face) is left to the caller.
+ */
+export function poseGuard(pose, limits = POSE_LIMITS, ease = POSE_EASE) {
+  if (!pose) return { ok: true, level: "unknown", message: "" };
+  const yaw = Math.abs(pose.yaw || 0);
+  const roll = Math.abs(pose.roll || 0);
+  const turned = yaw > limits.yaw;
+  const tilted = roll > limits.roll;
+  if (turned || tilted) {
+    return { ok: false, level: turned && tilted ? "turned-tilted" : turned ? "turned" : "tilted", message: POSE_MESSAGE };
+  }
+  if (yaw > ease.yaw || roll > ease.roll) {
+    return { ok: true, level: "slight", message: "Your head is turned or tilted a little, so the fit is rougher. A straight-on photo fits best." };
+  }
+  return { ok: true, level: "straight", message: "" };
 }
 
 /**

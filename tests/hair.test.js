@@ -113,20 +113,20 @@ test("each hairstyle is a transparent WebP of the same size, under 300 KB", asyn
   }
 });
 
-test("service worker precaches the app at v17 and caches portraits as they're viewed", async () => {
+test("service worker precaches the app at v18 and caches portraits as they're viewed", async () => {
   const sw = await readFile(new URL("../sw.js", import.meta.url), "utf8");
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   const app = await readFile(new URL("../js/app.js", import.meta.url), "utf8");
   const fit = await readFile(new URL("../js/face-fit.js", import.meta.url), "utf8");
-  assert.match(sw, /wingscrew-looks-v17/);
-  assert.match(sw, /app\.js\?v=17/);
-  assert.match(sw, /hair\.js\?v=17/);
-  assert.match(sw, /face-fit\.js\?v=17/);
-  assert.match(html, /app\.js\?v=17/);
-  assert.match(app, /hair\.js\?v=17/);
-  assert.match(app, /face-fit\.js\?v=17/);
-  assert.match(fit, /hair\.js\?v=17/);
-  assert.doesNotMatch(`${sw}${html}${app}${fit}`, /\?v=1[56]"/);
+  assert.match(sw, /wingscrew-looks-v18/);
+  assert.match(sw, /app\.js\?v=18/);
+  assert.match(sw, /hair\.js\?v=18/);
+  assert.match(sw, /face-fit\.js\?v=18/);
+  assert.match(html, /app\.js\?v=18/);
+  assert.match(app, /hair\.js\?v=18/);
+  assert.match(app, /face-fit\.js\?v=18/);
+  assert.match(fit, /hair\.js\?v=18/);
+  assert.doesNotMatch(`${sw}${html}${app}${fit}`, /(app|hair|face-fit)\.js\?v=1[567]"/);
   for (const style of HAIR_STYLES) assert.ok(sw.includes(`./${style.src}`), style.src);
   for (const model of HAIR_MODELS) assert.ok(sw.includes(`./${model.src}`), model.src);
   for (const file of ["vision_bundle.mjs", "wasm/vision_wasm_internal.wasm", "face_landmarker.task", "hair_segmenter.tflite"]) {
