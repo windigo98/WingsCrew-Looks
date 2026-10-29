@@ -3,7 +3,7 @@
  * MediaPipe FaceLandmarker and hair ImageSegmenter on first use. Nothing leaves
  * the phone.
  */
-import { facePointsFromLandmarks, headPose } from "./hair.js?v=18";
+import { facePointsFromLandmarks, headPose } from "./hair.js?v=19";
 
 const BASE = new URL("../assets/vendor/mediapipe/", import.meta.url).href;
 const FILESET = {

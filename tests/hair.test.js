@@ -146,20 +146,20 @@ test("each hairstyle is a transparent WebP of the same size, under 300 KB", asyn
   }
 });
 
-test("service worker precaches the app at v18 and caches portraits as they're viewed", async () => {
+test("service worker precaches the app at v19 and caches portraits as they're viewed", async () => {
   const sw = await readFile(new URL("../sw.js", import.meta.url), "utf8");
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   const app = await readFile(new URL("../js/app.js", import.meta.url), "utf8");
   const fit = await readFile(new URL("../js/face-fit.js", import.meta.url), "utf8");
-  assert.match(sw, /wingscrew-looks-v18/);
-  assert.match(sw, /app\.js\?v=18/);
-  assert.match(sw, /hair\.js\?v=18/);
-  assert.match(sw, /face-fit\.js\?v=18/);
-  assert.match(html, /app\.js\?v=18/);
-  assert.match(app, /hair\.js\?v=18/);
-  assert.match(app, /face-fit\.js\?v=18/);
-  assert.match(fit, /hair\.js\?v=18/);
-  assert.doesNotMatch(`${sw}${html}${app}${fit}`, /(app|hair|face-fit)\.js\?v=1[567]"/);
+  assert.match(sw, /wingscrew-looks-v19/);
+  assert.match(sw, /app\.js\?v=19/);
+  assert.match(sw, /hair\.js\?v=19/);
+  assert.match(sw, /face-fit\.js\?v=19/);
+  assert.match(html, /app\.js\?v=19/);
+  assert.match(app, /hair\.js\?v=19/);
+  assert.match(app, /face-fit\.js\?v=19/);
+  assert.match(fit, /hair\.js\?v=19/);
+  assert.doesNotMatch(`${sw}${html}${app}${fit}`, /(app|hair|face-fit)\.js\?v=1[5678]"/);
   for (const style of HAIR_STYLES) assert.ok(sw.includes(`./${style.src}`), style.src);
   for (const model of HAIR_MODELS) assert.ok(sw.includes(`./${model.src}`), model.src);
   for (const file of ["vision_bundle.mjs", "wasm/vision_wasm_internal.wasm", "face_landmarker.task", "hair_segmenter.tflite"]) {
@@ -331,7 +331,7 @@ test("app name and footer stay put", async () => {
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   const app = await readFile(new URL("../js/app.js", import.meta.url), "utf8");
   assert.doesNotMatch(html, /Try-On/i);
-  assert.match(app, /© 2026 WingsCrew\. All rights reserved\./);
+  assert.match(app, /© 2026 \$\{wcLink\(\)\}\. All rights reserved\./);
   assert.match(app, /Pick a model/);
   assert.doesNotMatch(app, /sample-face\.svg|Use a sample face/);
 });

@@ -724,3 +724,15 @@ body.in-studio.sheet-open .toast {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* WingsCrew branding */
+.brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.1; }
+.wc-link { color: inherit; text-decoration: none; }
+.wc-link:hover, .wc-link:focus-visible { text-decoration: underline; text-underline-offset: 2px; }
+.legal .wc-link, .lede .wc-link, .onboard li .wc-link { text-decoration: underline; text-underline-offset: 2px; }
+.wc-credit { display: inline-flex; align-items: center; gap: 5px; margin-top: 3px; color: var(--muted); font-size: 11px; font-weight: 500; letter-spacing: 0.02em; text-decoration: none; }
+.wc-credit img { height: 20px; width: auto; display: block; }
+.onboard .wc-credit { margin: 4px auto 10px; }
+.legal p { margin-top: 10px; }
+.wc-more { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; min-height: 44px; }
+.ai-badge .wc-link { pointer-events: auto; }

@@ -32,8 +32,9 @@ import {
   poseGuard,
   recolorHairPixels,
   tintedHairCanvas,
-} from "./hair.js?v=18";
-import { detectFace, hairMask } from "./face-fit.js?v=18";
+} from "./hair.js?v=19";
+import { detectFace, hairMask } from "./face-fit.js?v=19";
+import { mountMakeup, openMakeupLook } from "./makeup-screen.js?v=2";
 
 const NAV = [
   ["dress", "Dress", icon("dress")],
@@ -42,6 +43,7 @@ const NAV = [
   ["wishlist", "Wishlist", icon("wish")],
   ["looks", "Looks", icon("looks")],
   ["hair", "Hair", icon("hair")],
+  ["makeup", "Makeup", icon("makeup")],
 ];
 
 const FILTERS = [
@@ -124,6 +126,7 @@ function icon(name) {
     closet: `<path d="M4 8h16v12H4z"/><path d="M8 8V5h8v3M12 8v12"/>`,
     wish: `<path d="M7 3h10v18l-5-3-5 3z"/>`,
     looks: `<rect x="7" y="7" width="12" height="14" rx="2"/><path d="M9 7V4h9v5"/>`,
+    makeup: `<path d="M9 21h6M10 21V11h4v10M10.5 11l.8-6.2c.1-.9 1.3-1.2 1.8-.4l.9 1.4V11"/>`,
     hair: `<path d="M8 14c.2-4 2.2-7 4-8 1.2 2.4 2.2 2.6 4 .2 1.8 1 3.8 4 4 7.8.2 2.2-.2 4-1.4 5.4 1.2.6 1.6 2.2 1.2 3.6-1.6-.8-2-2.4-2.2-3.6-.8.8-2 1.2-3.6 1.2s-2.8-.4-3.6-1.2c-.2 1.2-.6 2.8-2.2 3.6-.4-1.4 0-3 1.2-3.6C8.2 18 7.8 16.2 8 14z"/>`,
   };
   return `<svg ${common}>${paths[name]}</svg>`;
@@ -134,8 +137,22 @@ const FTC_NOTICE = "We may earn a commission from links on this page.";
 const ETSY_NOTICE = "The term 'Etsy' is a trademark of Etsy, Inc. This Application uses Etsy's API, but is not endorsed or certified by Etsy.";
 const STORE_REL = "sponsored noopener noreferrer";
 
+const WINGSCREW_URL = "https://wingscrew.com/";
+
+function wcLink(text = "WingsCrew") {
+  return `<a class="wc-link" href="${WINGSCREW_URL}" target="_blank" rel="noopener">${text}</a>`;
+}
+
+function brandCreditHtml() {
+  return `<a class="wc-credit" href="${WINGSCREW_URL}" target="_blank" rel="noopener" aria-label="by WingsCrew, opens wingscrew.com"><picture><source srcset="assets/brand/logo.webp" type="image/webp"><img src="assets/brand/logo.png" alt="" width="15" height="22"></picture><span>by WingsCrew</span></a>`;
+}
+
+function moreFromWingsCrewHtml() {
+  return `<a class="btn ghost wc-more" href="${WINGSCREW_URL}" target="_blank" rel="noopener">More from WingsCrew ↗</a>`;
+}
+
 function footerHtml() {
-  return `<footer class="legal">© 2026 WingsCrew. All rights reserved.</footer>`;
+  return `<footer class="legal">${moreFromWingsCrewHtml()}<p>© 2026 ${wcLink()}. All rights reserved.</p></footer>`;
 }
 
 function storeAnchor(url, label, className) {
@@ -147,7 +164,7 @@ function storeAnchor(url, label, className) {
 function parseRoute() {
   const raw = (location.hash || "#dress").replace(/^#\/?/, "");
   const [path, id] = raw.split("/");
-  if (!["dress", "photos", "closet", "wishlist", "looks", "hair", "vote", "friends", "invite", "parent", "shared", "v"].includes(path)) return { path: "dress", id: "" };
+  if (!["dress", "photos", "closet", "wishlist", "looks", "hair", "makeup", "vote", "friends", "invite", "parent", "shared", "v"].includes(path)) return { path: "dress", id: "" };
   return { path, id: id || "" };
 }
 
@@ -333,7 +350,7 @@ function renderShell() {
   document.getElementById("app").innerHTML = `
     <div class="shell">
       <header class="header" id="header">
-        <div class="brand">${wingSvg("brand-mark")}<h1>WingsCrew Looks</h1></div>
+        <div class="brand">${wingSvg("brand-mark")}<div class="brand-text"><h1>${wcLink()} Looks</h1>${brandCreditHtml()}</div></div>
         <button type="button" class="teen-pill" data-action="go" data-route="friends" hidden>Teen</button>
         <button type="button" class="icon-btn" data-action="about" aria-label="About and privacy">i</button>
       </header>
@@ -464,6 +481,7 @@ function render() {
   else if (route.path === "friends") view.innerHTML = friendsHtml();
   else if (route.path === "invite") view.innerHTML = inviteHtml(route.id);
   else if (route.path === "shared") view.innerHTML = sharedHtml(route.id);
+  else if (route.path === "makeup") mountMakeup(view, makeupContext()).catch((error) => showToast(error.message || "Could not open makeup."));
   else if (route.path === "hair") {
     pickDefaultHairPhoto();
     view.innerHTML = hairHtml();
@@ -483,7 +501,8 @@ function onboardHtml() {
   if (step === 0) {
     return `<section class="onboard">
       <div>${wingSvg()}<p class="steps" aria-hidden="true">${dots}</p>
-        <h1>WingsCrew Looks</h1>
+        <h1>${wcLink()} Looks</h1>
+        ${brandCreditHtml()}
         <p class="lede">Try clothes, jewelry, makeup, and hair on a photo of you. Save the ones you love.</p>
         <p class="tagline">Then ask a friend: Fit or Miss?</p>
       </div>
@@ -512,7 +531,7 @@ function onboardHtml() {
     return `<section class="onboard">
       <div><p class="steps" aria-hidden="true">${dots}</p>
         <h1>Not yet</h1>
-        <p class="lede">WingsCrew Looks isn't available if you're under 13. We didn't create an account, and we didn't save this birthday.</p>
+        <p class="lede">${wcLink()} Looks isn't available if you're under 13. We didn't create an account, and we didn't save this birthday.</p>
       </div>
       <div class="stack">
         <button type="button" class="btn full" data-action="onboard-back">Try a different birthday</button>
@@ -530,7 +549,7 @@ function onboardHtml() {
         </label>` : ""}
       <ul class="bullets">
         <li>In this prototype, photos are stored only on this device, in this browser.</li>
-        <li>They are not uploaded to WingsCrew or anyone else.</li>
+        <li>They are not uploaded to ${wcLink()} or anyone else.</li>
         ${teen ? `<li>Looks stay private. Video export stays off until you turn it on.</li>
         <li>A parent link, if you make one, shows your friends list only.</li>` : `<li>Delete them anytime with one tap on the Photos page.</li>`}
         <li>A look is a preview, not a real fitting.</li>
@@ -654,7 +673,7 @@ function studioHtml() {
     <div class="stage-column">
       <div class="stage-wrap">
         <canvas id="stage" aria-label="Look preview"></canvas>
-        <div class="ai-badge">${wingSvg()}<span><small>AI preview</small><strong>WingsCrew Looks</strong></span></div>
+        <div class="ai-badge">${wingSvg()}<span><small>AI preview</small><strong>${wcLink()} Looks</strong></span></div>
         <div class="stage-empty" ${photo ? "hidden" : ""}>
           <p>Add a photo of you, or try a demo drawing.</p>
           <div class="row">
@@ -2334,9 +2353,26 @@ async function deleteMyPhotos() {
   });
 }
 
+/** What the Makeup tab (js/makeup-screen.js) needs from the app. */
+function makeupContext() {
+  return {
+    getPhotos: () => state.photos,
+    getHair: () => state.hair,
+    getProfile: () => state.profile,
+    mediaUrl,
+    showToast,
+    reload,
+    footerHtml,
+  };
+}
+
 function openLook(id) {
   const look = state.looks.find((item) => item.id === id);
   if (!look) return;
+  if (look.makeup) {
+    openMakeupLook(look).then(() => go("makeup"));
+    return;
+  }
   if (look.hair?.styleId) {
     state.hair = {
       ...defaultHairPlacement(),
@@ -2945,7 +2981,7 @@ function publicVoteHtml(token) {
   const mine = page.choice;
   const button = (choice, label) => `<button type="button" class="vote-btn ${mine === choice ? "on" : ""}" data-action="public-vote" data-token="${escapeHtml(token)}" data-choice="${choice}" data-reaction="${choice}"><b>${label}</b></button>`;
   return `<section class="vote">
-    <p class="hint">WingsCrew Looks</p>
+    <p class="hint">${wcLink()} Looks</p>
     ${src ? `<img alt="${escapeHtml(page.look.name)}" src="${src}">` : ""}
     <p class="tag ${escapeHtml(page.look.occasion)}">${escapeHtml(occasionLabel(page.look.occasion))}</p>
     <h2>Fit or Miss?</h2>
@@ -3156,7 +3192,7 @@ function openAbout() {
   ].join(" · ");
   openSheet(`
     <h2>About</h2>
-    <p class="lede">WingsCrew Looks is a way to try an outfit on you, save it, and decide with a friend.</p>
+    <p class="lede">${wcLink()} Looks is a way to try an outfit on you, save it, and decide with a friend.</p>
     <div class="sheet-note">
       <p>Photos in this prototype stay in this browser. A demo share link never leaves this phone. A live share link uploads that one look image.</p>
       <p style="margin-top:8px">Every dressed image is marked AI preview. It is not a real fitting. Hair is a drawing on this device, with no AI mark, and it stays here unless you share the look.</p>
@@ -3167,6 +3203,7 @@ function openAbout() {
       <button type="button" class="btn ghost full" data-action="delete-photos">Delete my photos</button>
       <button type="button" class="btn rose full" data-action="delete-all">Delete everything on this device</button>
       <a class="btn ghost full" style="text-align:center;text-decoration:none" href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>
+      ${moreFromWingsCrewHtml().replace("btn ghost", "btn full")}
     </div>
     ${footerHtml()}`);
 }
