@@ -1,6 +1,6 @@
 # WingsCrew Looks
 
-WingsCrew Looks is a fashion app by WingsCrew. You add photos of yourself, layer clothes, accessories, and jewelry on them, try a makeup preset, and save the result as a look. Pieces you own go in My Closet. Pieces you want go on a private wishlist with size, color, and where to buy them. When you can't decide, you export the image and cast a **Fit or Miss?** vote (heart, meh, or no).
+WingsCrew Looks is a fashion app by WingsCrew. You add photos of yourself, layer clothes, accessories, and jewelry on them, try a makeup preset or a hairstyle, and save the result as a look. Pieces you own go in My Closet. Pieces you want go on a private wishlist with size, color, and where to buy them. When you can't decide, you export the image and cast a **Fit or Miss?** vote (heart, meh, or no).
 
 This repository is the first working prototype: a mobile-first static site. It is meant to run on GitHub Pages from the `main` branch, at the repository root.
 
@@ -22,11 +22,13 @@ Then visit `http://127.0.0.1:4173`.
 
 On a phone, use the same Wi-Fi and open `http://<your-computer>:4173`. Add to Home Screen from Safari if you want it full screen. Photos stay in this browser's storage (IndexedDB).
 
-Wishlist shape checks (no browser needed):
+Unit checks (no browser needed):
 
 ```bash
-node --test tests/wishlist.test.js
+npm test            # same as: node --test tests/*.test.js
 ```
+
+Third-party code: `assets/vendor/mediapipe/` is Google's MediaPipe Tasks Vision 1.1.1 (Apache License 2.0, see the `LICENSE` and `README.md` in that folder). It runs on the device; the app never calls a face API.
 
 ## What's real, and what's a demo
 
@@ -35,9 +37,10 @@ node --test tests/wishlist.test.js
 | Photos | Real camera or upload. Stored only on the device. One tap deletes them, with undo. | Accounts, encrypted storage, deletion from AI providers |
 | Dressing a look | Real drag, pinch, rotate, flip, delete, and layer order. Sample art plus your images. | AI try-on (FASHN, Google Virtual Try-On, or similar) that redraws the garment on the body |
 | Makeup | Real preset overlays: Natural, Glam, Bold lip, Smoky eye. Drag them onto the face. | A makeup model (Perfect Corp, a guided image edit, or MediaPipe landmarks) |
+| Hair | Photo-real 2026 salon styles under **Women** and **Men** tabs, grouped Short, Medium, Long, Updos, and Textured. Women (22): Sleek Chin Bob, Italian Lob, Butterfly Cut, Long Layers, Bouncy Blowout, Beach Waves, Silk Press, Defined Curls, Knotless Braids, Sleek High Ponytail, High Bun / Chignon, Textured Pixie, Wolf Cut, Natural Afro, Shoulder Locs, Wispy Bangs Shag, French Bob + Bangs, Bixie, Curtain Bangs + Long Layers, Boho Goddess Braids, Half-Up Half-Down, Curly Shag. Men (20): Low Taper + Textured Crop, Buzz Cut, Classic Side Part, Comma Hair, Two-Block, Soft Wolf Cut, Modern Mullet, Flow (Swept Back), High-Top Fade, 360 Waves, Curly Top + Taper, Two-Strand Twists, Stitch Braids, Textured French Crop, Burst Fade, Slick Back, Ivy League, Middle Part (Curtains), Crew Cut, Shoulder Locs. Women's and men's sets never mix: men's cuts are never shown on the women models or the reverse. Fourteen colors (Jet Black, Espresso, Chestnut, Light Brown, Caramel Honey, Golden Blonde, Ash Blonde, Platinum, Copper, Auburn, Burgundy, Silver Gray, Rose Pink, Lavender), each as All over, Balayage, Highlights, or Rooted (ombre). **Pick a model** shows finished portraits: each made-up model (AI-made, fictional, not real people) wearing every cut from their set, made ahead of time in a neutral medium brown and stored as small WebPs (`assets/looks/<model>/<style>.webp`, 720x960, about 25–80 KB, loaded only when viewed and cached by the service worker as you go). Color is applied on the phone: the bundled MediaPipe hair segmenter finds the hair once per portrait, then a luminance-preserving gradient map repaints it, so strands keep their light and shade. All twelve models (Oval, Round, Square, Heart, Long, and Diamond, women and men) have their full sets: 252 portraits. **Your own photo** gets an approximate overlay, labeled "Approximate preview": the bundled MediaPipe Face Landmarker (no network) finds the face, the hair is sized from hairline to chin, and the cutout is warped so its inner edge follows your head outline from the face mesh (temples and forehead raised to the hairline), with the hair above the head thinned as a rounded dome rather than pressed flat. On a tilted or turned head the hair rotates with the head's roll, the turn (yaw) is estimated from the nose against the cheeks, and the far side is compressed while the near side widens, so the top follows the skull instead of sitting flat. **Straight-on guard:** the Face Landmarker's own head-pose matrix gives the turn (yaw) and the eye line gives the tilt (roll); past about 12° of turn or 10° of tilt the overlay is not drawn, and a card says "For the best hair preview, use a photo where you're facing the camera, head straight." with a small **Show anyway** button (remembered per photo). Small tilts (over about 6–7°) are still drawn, with a gentle tip that a straight-on photo fits best. **Fit to face** re-runs it; a Hairline slider, Width/Height, and Push hair back / Push bangs back fine-tune it. If no face is found, the hair goes in the middle with a hint. Saved looks use the same share link and Fit or Miss vote. Nothing is uploaded until you share. | More styles |
 | Background lift | Real, on-device, for a plain light backdrop. It will damage white clothing, so it is off unless you turn it on. | A proper matte model such as `@imgly/background-removal` |
 | Looks, closet, wishlist, votes | Real, on this device. **Share link** publishes a Fit or Miss page. Until Supabase is connected it is a demo that only opens on this phone. | Live links on other phones. See [docs/supabase-setup.md](docs/supabase-setup.md) |
-| "AI preview" badge | Burned into every exported image, and shown on the studio | Keep it. The AI label does not come off. |
+| "AI preview" badge | Burned into dressed images, and shown on the studio. Hair saves are drawings, so they do not get that badge. | Keep it on dressed images. The AI label does not come off those. |
 | Age and Teen mode | Birthday on first run. Under 13 is refused and not stored. Ages 13–17 get Teen mode: invite-only friends, private looks, video export off until they turn it on, no adult or sponsored-adult packs, optional parent link that shows the friends list only. | Accounts, delivery of invites to another phone, and phone-contact matching (that last one comes with the native app; the web uses invite links) |
 
 Nothing here calls a paid API. The only optional key is the public Supabase anon key, and the app runs without it.

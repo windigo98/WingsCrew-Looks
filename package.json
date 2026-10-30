@@ -1,0 +1,9 @@
+{
+  "name": "wingscrew-looks",
+  "private": true,
+  "type": "module",
+  "description": "WingsCrew Looks, a static PWA. No build step.",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}
