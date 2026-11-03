@@ -94,3 +94,40 @@ test("empty Dress: start hint shown and action bar hidden until a photo exists",
   const css = await read("css/app.css");
   assert.match(css, /\.studio-actions\[hidden\] \{ display: none; \}/);
 });
+
+test("About: deletes sit in a separate Danger zone below Done, outlined not filled", async () => {
+  const app = await read("js/app.js");
+  const about = app.match(/function openAbout[^]*?\n\}/)[0];
+  const order = ["how-it-works", "mailto:", "moreFromWingsCrewHtml()", ">Done<", "danger-zone", 'data-action="delete-photos"', 'data-action="delete-all"'].map((k) => about.indexOf(k));
+  assert.ok(order.every((i) => i >= 0), String(order));
+  assert.deepEqual([...order].sort((a, b) => a - b), order);
+  const stack = about.slice(0, about.indexOf("danger-zone"));
+  assert.doesNotMatch(stack, /delete-/);
+  assert.match(about, /<h3 id="danger-zone-label">Danger zone<\/h3>/);
+  assert.doesNotMatch(about, /btn rose/);
+  assert.match(await read("css/app.css"), /\.danger-zone \{ margin-top: 36px;/);
+});
+
+test("every delete asks first: Cancel is the safe default, data is erased only on Delete", async () => {
+  const app = await read("js/app.js");
+  assert.match(app, /function confirmDelete\(body, \{ title = "Are you sure\?", confirmLabel = "Delete" \} = \{\}\) \{\s*return askConfirm\(\{ title, body, confirmLabel, danger: true \}\);/);
+  assert.match(app, /class="btn ghost" data-no>Cancel<[^]*?class="btn \$\{danger \? "rose" : ""\}" data-yes>/);
+  assert.match(app, /root\.querySelector\("\[data-no\]\.btn"\)\?\.focus\(\);/);
+  assert.match(app, /node\.onclick = \(\) => finish\(false\)/); // backdrop + Cancel resolve false
+  const guarded = {
+    deletePhoto: "db.deletePhoto(id)", deleteMyPhotos: "db.deletePhoto(photo.id)", deleteItem: "db.deleteItem(id)",
+    deleteWish: "db.deleteWish(id)", deleteLook: "db.deleteLook(id)", deleteAll: "db.clearAll()",
+    deleteSelected: "state.studio.layers = ", setFriendStatus: "removeFriend",
+  };
+  for (const [fn, eraser] of Object.entries(guarded)) {
+    const body = app.match(new RegExp(`async function ${fn}\\([^]*?\\n\\}`))[0];
+    const ask = body.search(/if \(!\(?(?:yes|await confirmDelete)|if \(!yes\) return|&& !\(await confirmDelete/);
+    assert.ok(ask >= 0, `${fn} asks`);
+    assert.ok(ask < body.indexOf(eraser), `${fn} asks before erasing`);
+  }
+  assert.doesNotMatch(app, /window\.confirm\(/);
+});
+
+test("Start here hint is a high-contrast pill", async () => {
+  assert.match(await read("css/app.css"), /\.stage-empty \.start-hint \{[^}]*color: #fff; background: rgba\(28, 20, 36, 0\.88\)/);
+});

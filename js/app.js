@@ -260,6 +260,10 @@ function showToast(message, { undo } = {}) {
   placeToast();
 }
 
+function confirmDelete(body, { title = "Are you sure?", confirmLabel = "Delete" } = {}) {
+  return askConfirm({ title, body, confirmLabel, danger: true });
+}
+
 function askConfirm({ title, body, confirmLabel, danger }) {
   const root = document.getElementById("confirm-root");
   root.hidden = false;
@@ -275,6 +279,7 @@ function askConfirm({ title, body, confirmLabel, danger }) {
     </div>`;
   hideDemoToast();
   placeToast();
+  root.querySelector("[data-no].btn")?.focus();
   return new Promise((resolve) => {
     const finish = (value) => {
       root.hidden = true;
@@ -1493,8 +1498,10 @@ function nudgeLayer(direction) {
   paintStudio();
 }
 
-function deleteSelected() {
-  if (!state.studio.selectedId) return;
+async function deleteSelected() {
+  const layer = selectedLayer();
+  if (!layer) return;
+  if (!(await confirmDelete(`This takes "${layer.name || "this piece"}" off the current outfit.`, { title: "Remove this piece?", confirmLabel: "Remove" }))) return;
   state.studio.layers = state.studio.layers.filter((layer) => layer.id !== state.studio.selectedId);
   state.studio.selectedId = null;
   markDirty();
@@ -2359,6 +2366,7 @@ async function addDemoPoses() {
 async function deletePhoto(id) {
   const removed = state.photos.find((photo) => photo.id === id);
   if (!removed) return;
+  if (!(await confirmDelete(`This erases the photo "${removed.name || "this pose"}" from this device.`))) return;
   await db.deletePhoto(id);
   visuals.delete(`photo:${id}`);
   if (state.studio.photoId === id) state.studio.photoId = null;
@@ -2372,6 +2380,7 @@ async function deletePhoto(id) {
 async function deleteMyPhotos() {
   const removed = state.photos.filter((photo) => !photo.demo);
   if (!removed.length) return;
+  if (!(await confirmDelete(`This erases ${removed.length === 1 ? "your photo" : `all ${removed.length} of your photos`} from this device. Demo drawings stay.`, { title: "Delete my photos?" }))) return;
   for (const photo of removed) {
     await db.deletePhoto(photo.id);
     visuals.delete(`photo:${photo.id}`);
@@ -2662,7 +2671,7 @@ async function onClick(event) {
       paintStudio();
     } else if (action === "layer-back") nudgeLayer(-1);
     else if (action === "layer-forward") nudgeLayer(1);
-    else if (action === "delete-layer") deleteSelected();
+    else if (action === "delete-layer") await deleteSelected();
     else if (action === "clear-outfit") clearOutfit();
     else if (action === "closet-layer") await saveLayerToCloset();
     else if (action === "upgrade") await openUpgrade(button.dataset.id);
@@ -2868,6 +2877,7 @@ function openTeenShare(lookId) {
 async function deleteItem(id) {
   const removed = state.items.find((item) => item.id === id);
   if (!removed) return;
+  if (!(await confirmDelete(`This removes "${removed.name || "this piece"}" from My Closet.`))) return;
   await db.deleteItem(id);
   await reload();
   render();
@@ -2877,6 +2887,7 @@ async function deleteItem(id) {
 async function deleteWish(id) {
   const removed = state.wishes.find((wish) => wish.id === id);
   if (!removed) return;
+  if (!(await confirmDelete(`This removes "${removed.name || "this item"}" from your wishlist.`))) return;
   await db.deleteWish(id);
   await reload();
   render();
@@ -2886,6 +2897,7 @@ async function deleteWish(id) {
 async function deleteLook(id) {
   const removed = state.looks.find((look) => look.id === id);
   if (!removed) return;
+  if (!(await confirmDelete(`This deletes the look "${removed.name || "this look"}", its votes, and any share link for it.`))) return;
   const shared = providers.shareLinks.owned().find((item) => item.lookId === id && !item.revoked);
   if (shared) await providers.shareLinks.revoke(shared.token);
   await db.deleteLook(id);
@@ -3162,6 +3174,7 @@ async function approveFriend(id) {
 }
 
 async function setFriendStatus(id, kind) {
+  if (kind === "remove" && !(await confirmDelete("They will no longer see your looks or vote on them.", { title: "Remove this friend?", confirmLabel: "Remove" }))) return;
   const result = kind === "block" ? providers.circle.blockFriend(state.circle, { id }) : providers.circle.removeFriend(state.circle, { id });
   state.circle = result.circle;
   await saveCircle();
@@ -3237,22 +3250,20 @@ function openAbout() {
     </div>
     <div class="stack" style="margin-top:14px">
       <button type="button" class="btn ghost full" data-action="how-it-works">How it works</button>
-      <button type="button" class="btn ghost full" data-action="delete-photos">Delete my photos</button>
-      <button type="button" class="btn rose full" data-action="delete-all">Delete everything on this device</button>
       <a class="btn ghost full" style="text-align:center;text-decoration:none" href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>
       ${moreFromWingsCrewHtml().replace("btn ghost", "btn full")}
       <button type="button" class="btn ghost full" data-sheet-close>Done</button>
     </div>
+    <section class="danger-zone" aria-labelledby="danger-zone-label">
+      <h3 id="danger-zone-label">Danger zone</h3>
+      <button type="button" class="btn danger-outline full" data-action="delete-photos">Delete my photos</button>
+      <button type="button" class="btn danger-outline full" data-action="delete-all">Delete everything on this device</button>
+    </section>
     ${footerHtml({ more: false })}`);
 }
 
 async function deleteAll() {
-  const yes = await askConfirm({
-    title: "Delete everything?",
-    body: "This removes photos, closet pieces, looks, wishlist items, and votes from this device.",
-    confirmLabel: "Delete everything",
-    danger: true,
-  });
+  const yes = await confirmDelete("This erases all your photos, closet pieces, saved looks, wishlist items, and votes from this device. It can't be undone.", { title: "Delete everything?" });
   if (!yes) return;
   await db.clearAll();
   location.reload();
