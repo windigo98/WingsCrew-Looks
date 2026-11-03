@@ -146,6 +146,9 @@ main {
   font-size: 15px;
 }
 .btn.rose { background: var(--rose); }
+.btn.danger-outline { background: transparent; color: var(--rose-deep); border: 1.5px solid rgba(212, 50, 91, 0.45); box-shadow: none; min-height: 44px; font-size: 14px; }
+.danger-zone { margin-top: 36px; padding-top: 14px; border-top: 1px dashed rgba(212, 50, 91, 0.4); display: grid; gap: 10px; }
+.danger-zone h3 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rose-deep); }
 .btn.ghost {
   background: transparent;
   color: var(--ink);
@@ -357,13 +360,18 @@ main {
   inset: 0;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 8px;
-  padding: 16px;
+  padding: 16px 16px 64px;
   background: linear-gradient(to top, rgba(28,20,36,0.55), rgba(28,20,36,0.05) 55%);
   color: white;
 }
-.stage-empty[hidden] { display: none; }
+.stage-empty[hidden], .studio-actions[hidden] { display: none; }
+.stage-empty .start-hint { align-self: flex-start; font-family: inherit; font-size: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #fff; background: rgba(28, 20, 36, 0.88); padding: 6px 12px; border-radius: 999px; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); }
+.welcome-steps { margin: 6px 0 14px; padding-left: 22px; display: grid; gap: 8px; font-size: 16px; }
+.welcome .hint { margin-bottom: 14px; }
+.welcome-start { min-height: 52px; font-size: 17px; }
+.link-btn.welcome-skip { display: block; margin: 10px auto 0; min-height: 44px; padding: 8px 16px; background: none; border: 0; color: var(--muted); text-decoration: underline; font: inherit; cursor: pointer; }
 .stage-empty p { font-family: var(--serif); font-size: 28px; line-height: 1.05; max-width: 16ch; }
 .stage-empty .btn.ghost { color: white; border-color: rgba(255,255,255,0.5); }
 
@@ -467,6 +475,7 @@ body[data-route="v"] main { padding-bottom: 28px; }
 }
 .confirm-card { padding-top: 18px; }
 .sheet h2, .confirm-card h2 { font-size: 30px; margin: 6px 0 12px; }
+.sheet .sheet-close { position: sticky; top: 0; float: right; margin: -2px -6px 0 8px; width: 44px; height: 44px; min-width: 44px; border: 0; border-radius: 50%; background: var(--paper); color: var(--ink); font-size: 20px; line-height: 1; cursor: pointer; z-index: 2; }
 .grabber { width: 42px; height: 4px; border-radius: 99px; background: var(--line); margin: 6px auto 8px; }
 .sheet-note { background: var(--paper); border-radius: 16px; padding: 12px; color: var(--ink-soft); font-size: 14px; }
 

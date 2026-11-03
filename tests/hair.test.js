@@ -151,11 +151,11 @@ test("service worker precaches the app at v19 and caches portraits as they're vi
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   const app = await readFile(new URL("../js/app.js", import.meta.url), "utf8");
   const fit = await readFile(new URL("../js/face-fit.js", import.meta.url), "utf8");
-  assert.match(sw, /wingscrew-looks-v19/);
-  assert.match(sw, /app\.js\?v=19/);
+  assert.match(sw, /wingscrew-looks-v20/);
+  assert.match(sw, /app\.js\?v=20/);
   assert.match(sw, /hair\.js\?v=19/);
   assert.match(sw, /face-fit\.js\?v=19/);
-  assert.match(html, /app\.js\?v=19/);
+  assert.match(html, /app\.js\?v=20/);
   assert.match(app, /hair\.js\?v=19/);
   assert.match(app, /face-fit\.js\?v=19/);
   assert.match(fit, /hair\.js\?v=19/);

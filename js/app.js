@@ -151,8 +151,8 @@ function moreFromWingsCrewHtml() {
   return `<a class="btn ghost wc-more" href="${WINGSCREW_URL}" target="_blank" rel="noopener">More from WingsCrew ↗</a>`;
 }
 
-function footerHtml() {
-  return `<footer class="legal">${moreFromWingsCrewHtml()}<p>© 2026 ${wcLink()}. All rights reserved.</p></footer>`;
+function footerHtml({ more = true } = {}) {
+  return `<footer class="legal">${more ? moreFromWingsCrewHtml() : ""}<p>© 2026 ${wcLink()}. All rights reserved.</p></footer>`;
 }
 
 function storeAnchor(url, label, className) {
@@ -260,6 +260,10 @@ function showToast(message, { undo } = {}) {
   placeToast();
 }
 
+function confirmDelete(body, { title = "Are you sure?", confirmLabel = "Delete" } = {}) {
+  return askConfirm({ title, body, confirmLabel, danger: true });
+}
+
 function askConfirm({ title, body, confirmLabel, danger }) {
   const root = document.getElementById("confirm-root");
   root.hidden = false;
@@ -275,6 +279,7 @@ function askConfirm({ title, body, confirmLabel, danger }) {
     </div>`;
   hideDemoToast();
   placeToast();
+  root.querySelector("[data-no].btn")?.focus();
   return new Promise((resolve) => {
     const finish = (value) => {
       root.hidden = true;
@@ -290,7 +295,7 @@ function askConfirm({ title, body, confirmLabel, danger }) {
 function openSheet(html) {
   const root = document.getElementById("sheet-root");
   root.hidden = false;
-  root.innerHTML = `<div class="sheet-backdrop" data-sheet-close></div><div class="sheet" role="dialog" aria-modal="true"><div class="grabber"></div>${html}</div>`;
+  root.innerHTML = `<div class="sheet-backdrop" data-sheet-close></div><div class="sheet" role="dialog" aria-modal="true"><div class="grabber"></div><button type="button" class="sheet-close" data-sheet-close aria-label="Close">✕</button>${html}</div>`;
   hideDemoToast();
   placeToast();
   return root;
@@ -422,8 +427,42 @@ function reseatStudio(studio) {
   return { ...studio, layers, selectedId, placementVersion: PLACEMENT_VERSION };
 }
 
+const WELCOME_KEY = "wcl-welcome-seen";
+
+function welcomeSeen() {
+  try { return localStorage.getItem(WELCOME_KEY) === "1"; } catch { return true; }
+}
+
+function markWelcomeSeen() {
+  try { localStorage.setItem(WELCOME_KEY, "1"); } catch { /* private mode */ }
+}
+
+function maybeWelcome() {
+  if (!state.ready || state.error || !state.profile || welcomeSeen() || sheetIsOpen()) return;
+  if (["parent", "v", "shared", "vote", "invite"].includes(parseRoute().path)) return;
+  openWelcome();
+}
+
+function openWelcome() {
+  markWelcomeSeen();
+  openSheet(`
+    <div class="welcome">
+      <h2>Welcome to ${wcLink()} Looks</h2>
+      <p class="lede">Try outfits, hair and makeup on your photo, save looks, and ask a friend: Fit or Miss?</p>
+      <ol class="welcome-steps">
+        <li><strong>Add a photo</strong> of you, or try a demo.</li>
+        <li><strong>Pick an outfit</strong>, hair or makeup.</li>
+        <li><strong>Save it</strong>, or send it to a friend to vote.</li>
+      </ol>
+      <p class="hint">Your photos stay on this phone.</p>
+      <button type="button" class="btn full welcome-start" data-sheet-close>Get started</button>
+      <button type="button" class="link-btn welcome-skip" data-sheet-close>Skip</button>
+    </div>`);
+}
+
 function render() {
   if (!state.ready) return;
+  queueMicrotask(maybeWelcome);
   document.body.classList.toggle("in-studio", parseRoute().path === "dress");
   pointers.clear();
   gesture = null;
@@ -675,6 +714,7 @@ function studioHtml() {
         <canvas id="stage" aria-label="Look preview"></canvas>
         <div class="ai-badge">${wingSvg()}<span><small>AI preview</small><strong>${wcLink()} Looks</strong></span></div>
         <div class="stage-empty" ${photo ? "hidden" : ""}>
+          <p class="start-hint">Start here ↓</p>
           <p>Add a photo of you, or try a demo drawing.</p>
           <div class="row">
             <button type="button" class="btn small" data-action="go" data-route="photos">Add a photo</button>
@@ -711,7 +751,7 @@ function studioHtml() {
         <div class="sample-grid" style="margin-top:10px">${trayHtml()}</div>
       </div>
     </div>
-    <div class="studio-actions row">
+    <div class="studio-actions row" ${photo ? "" : "hidden"}>
       <button type="button" class="btn" data-action="save-look">Save look</button>
       <button type="button" class="btn rose" data-action="ask-vote">Fit or Miss?</button>
       <button type="button" class="btn ghost" data-action="share-studio">Share image</button>
@@ -1458,8 +1498,10 @@ function nudgeLayer(direction) {
   paintStudio();
 }
 
-function deleteSelected() {
-  if (!state.studio.selectedId) return;
+async function deleteSelected() {
+  const layer = selectedLayer();
+  if (!layer) return;
+  if (!(await confirmDelete(`This takes "${layer.name || "this piece"}" off the current outfit.`, { title: "Remove this piece?", confirmLabel: "Remove" }))) return;
   state.studio.layers = state.studio.layers.filter((layer) => layer.id !== state.studio.selectedId);
   state.studio.selectedId = null;
   markDirty();
@@ -2324,6 +2366,7 @@ async function addDemoPoses() {
 async function deletePhoto(id) {
   const removed = state.photos.find((photo) => photo.id === id);
   if (!removed) return;
+  if (!(await confirmDelete(`This erases the photo "${removed.name || "this pose"}" from this device.`))) return;
   await db.deletePhoto(id);
   visuals.delete(`photo:${id}`);
   if (state.studio.photoId === id) state.studio.photoId = null;
@@ -2337,6 +2380,7 @@ async function deletePhoto(id) {
 async function deleteMyPhotos() {
   const removed = state.photos.filter((photo) => !photo.demo);
   if (!removed.length) return;
+  if (!(await confirmDelete(`This erases ${removed.length === 1 ? "your photo" : `all ${removed.length} of your photos`} from this device. Demo drawings stay.`, { title: "Delete my photos?" }))) return;
   for (const photo of removed) {
     await db.deletePhoto(photo.id);
     visuals.delete(`photo:${photo.id}`);
@@ -2591,6 +2635,7 @@ async function onClick(event) {
       await finishOnboarding();
       return;
     } else if (action === "about") openAbout();
+    else if (action === "how-it-works") { closeSheet(); openWelcome(); }
     else if (action === "pick-photo") {
       startPick("photo", { slot: button.dataset.slot, camera: button.dataset.camera, facing: button.dataset.facing, replaceId: button.dataset.replace });
       return;
@@ -2626,7 +2671,7 @@ async function onClick(event) {
       paintStudio();
     } else if (action === "layer-back") nudgeLayer(-1);
     else if (action === "layer-forward") nudgeLayer(1);
-    else if (action === "delete-layer") deleteSelected();
+    else if (action === "delete-layer") await deleteSelected();
     else if (action === "clear-outfit") clearOutfit();
     else if (action === "closet-layer") await saveLayerToCloset();
     else if (action === "upgrade") await openUpgrade(button.dataset.id);
@@ -2832,6 +2877,7 @@ function openTeenShare(lookId) {
 async function deleteItem(id) {
   const removed = state.items.find((item) => item.id === id);
   if (!removed) return;
+  if (!(await confirmDelete(`This removes "${removed.name || "this piece"}" from My Closet.`))) return;
   await db.deleteItem(id);
   await reload();
   render();
@@ -2841,6 +2887,7 @@ async function deleteItem(id) {
 async function deleteWish(id) {
   const removed = state.wishes.find((wish) => wish.id === id);
   if (!removed) return;
+  if (!(await confirmDelete(`This removes "${removed.name || "this item"}" from your wishlist.`))) return;
   await db.deleteWish(id);
   await reload();
   render();
@@ -2850,6 +2897,7 @@ async function deleteWish(id) {
 async function deleteLook(id) {
   const removed = state.looks.find((look) => look.id === id);
   if (!removed) return;
+  if (!(await confirmDelete(`This deletes the look "${removed.name || "this look"}", its votes, and any share link for it.`))) return;
   const shared = providers.shareLinks.owned().find((item) => item.lookId === id && !item.revoked);
   if (shared) await providers.shareLinks.revoke(shared.token);
   await db.deleteLook(id);
@@ -3126,6 +3174,7 @@ async function approveFriend(id) {
 }
 
 async function setFriendStatus(id, kind) {
+  if (kind === "remove" && !(await confirmDelete("They will no longer see your looks or vote on them.", { title: "Remove this friend?", confirmLabel: "Remove" }))) return;
   const result = kind === "block" ? providers.circle.blockFriend(state.circle, { id }) : providers.circle.removeFriend(state.circle, { id });
   state.circle = result.circle;
   await saveCircle();
@@ -3200,21 +3249,21 @@ function openAbout() {
       <p style="margin-top:8px">Active previews: ${escapeHtml(names)}.</p>
     </div>
     <div class="stack" style="margin-top:14px">
-      <button type="button" class="btn ghost full" data-action="delete-photos">Delete my photos</button>
-      <button type="button" class="btn rose full" data-action="delete-all">Delete everything on this device</button>
+      <button type="button" class="btn ghost full" data-action="how-it-works">How it works</button>
       <a class="btn ghost full" style="text-align:center;text-decoration:none" href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>
       ${moreFromWingsCrewHtml().replace("btn ghost", "btn full")}
+      <button type="button" class="btn ghost full" data-sheet-close>Done</button>
     </div>
-    ${footerHtml()}`);
+    <section class="danger-zone" aria-labelledby="danger-zone-label">
+      <h3 id="danger-zone-label">Danger zone</h3>
+      <button type="button" class="btn danger-outline full" data-action="delete-photos">Delete my photos</button>
+      <button type="button" class="btn danger-outline full" data-action="delete-all">Delete everything on this device</button>
+    </section>
+    ${footerHtml({ more: false })}`);
 }
 
 async function deleteAll() {
-  const yes = await askConfirm({
-    title: "Delete everything?",
-    body: "This removes photos, closet pieces, looks, wishlist items, and votes from this device.",
-    confirmLabel: "Delete everything",
-    danger: true,
-  });
+  const yes = await confirmDelete("This erases all your photos, closet pieces, saved looks, wishlist items, and votes from this device. It can't be undone.", { title: "Delete everything?" });
   if (!yes) return;
   await db.clearAll();
   location.reload();

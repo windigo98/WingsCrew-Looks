@@ -1,11 +1,11 @@
-const CACHE = "wingscrew-looks-v19";
+const CACHE = "wingscrew-looks-v20";
 
 const PRECACHE = [
   "./",
   "./index.html",
   "./manifest.json",
-  "./css/app.css?v=16",
-  "./js/app.js?v=19",
+  "./css/app.css?v=17",
+  "./js/app.js?v=20",
   "./js/hair.js?v=19",
   "./js/face-fit.js?v=19",
   "./css/makeup.css?v=2",
