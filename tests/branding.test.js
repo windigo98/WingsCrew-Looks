@@ -48,7 +48,7 @@ test("service worker precaches the logo; LICENSE and name intact; no secrets", a
   const sw = await read("sw.js");
   assert.match(sw, /"\.\/assets\/brand\/logo\.webp"/);
   assert.match(sw, /"\.\/assets\/brand\/logo\.png"/);
-  assert.match(sw, /wingscrew-looks-v20/);
+  assert.match(sw, /wingscrew-looks-v21/);
   assert.match(await read("LICENSE"), /All rights reserved/i);
   const app = await read("js/app.js");
   assert.doesNotMatch(app + (await read("index.html")), /Try-On/);

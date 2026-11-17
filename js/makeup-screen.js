@@ -6,7 +6,7 @@
  */
 import { db } from "./db.js";
 import { downscaleImage, loadImage } from "./images.js";
-import { detectFace, hairMask } from "./face-fit.js?v=19";
+import { detectFace, hairMask } from "./face-fit.js?v=20";
 import {
   FACE_SHAPES,
   HAIR_MODELS,
@@ -19,7 +19,7 @@ import {
   modelAudience,
   recolorHairPixels,
   tintedHairCanvas,
-} from "./hair.js?v=19";
+} from "./hair.js?v=20";
 import { PLACEMENT_VERSION } from "./placement.js?v=8";
 import { isTeen } from "./safety.js";
 import { escapeHtml, uid } from "./util.js";

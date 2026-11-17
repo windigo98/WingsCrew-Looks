@@ -146,20 +146,20 @@ test("each hairstyle is a transparent WebP of the same size, under 300 KB", asyn
   }
 });
 
-test("service worker precaches the app at v19 and caches portraits as they're viewed", async () => {
+test("service worker precaches the app at v21 and caches portraits as they're viewed", async () => {
   const sw = await readFile(new URL("../sw.js", import.meta.url), "utf8");
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   const app = await readFile(new URL("../js/app.js", import.meta.url), "utf8");
   const fit = await readFile(new URL("../js/face-fit.js", import.meta.url), "utf8");
-  assert.match(sw, /wingscrew-looks-v20/);
-  assert.match(sw, /app\.js\?v=20/);
-  assert.match(sw, /hair\.js\?v=19/);
-  assert.match(sw, /face-fit\.js\?v=19/);
-  assert.match(html, /app\.js\?v=20/);
-  assert.match(app, /hair\.js\?v=19/);
-  assert.match(app, /face-fit\.js\?v=19/);
-  assert.match(fit, /hair\.js\?v=19/);
-  assert.doesNotMatch(`${sw}${html}${app}${fit}`, /(app|hair|face-fit)\.js\?v=1[5678]"/);
+  assert.match(sw, /wingscrew-looks-v21/);
+  assert.match(sw, /app\.js\?v=21/);
+  assert.match(sw, /hair\.js\?v=20/);
+  assert.match(sw, /face-fit\.js\?v=20/);
+  assert.match(html, /app\.js\?v=21/);
+  assert.match(app, /hair\.js\?v=20/);
+  assert.match(app, /face-fit\.js\?v=20/);
+  assert.match(fit, /hair\.js\?v=20/);
+  assert.doesNotMatch(`${sw}${html}${app}${fit}`, /(app|hair|face-fit)\.js\?v=1[56789]"/);
   for (const style of HAIR_STYLES) assert.ok(sw.includes(`./${style.src}`), style.src);
   for (const model of HAIR_MODELS) assert.ok(sw.includes(`./${model.src}`), model.src);
   for (const file of ["vision_bundle.mjs", "wasm/vision_wasm_internal.wasm", "face_landmarker.task", "hair_segmenter.tflite"]) {
@@ -573,4 +573,44 @@ test("push back clears an oval over the forehead only", () => {
   assert.ok(oval.cy - oval.ry < style.face.top * k, "reaches past the hairline");
   assert.ok(oval.rx > HAIR_FACE.rx * k && oval.rx < HAIR_FACE.rx * 1.1 * k);
   assert.ok(oval.feather > 0);
+});
+
+test("v21: Burst Fade, Ivy League and Crew Cut are three different cuts on every man", async () => {
+  const { createHash } = await import("node:crypto");
+  const hash = async (path) => createHash("sha256").update(await readFile(new URL(`../${path}`, import.meta.url))).digest("hex");
+  const ids = ["burst", "ivy", "crew"];
+  const styles = ids.map((id) => HAIR_STYLES.find((item) => item.id === id));
+  // Separate overlay cutouts, and the crowns sit at clearly different heights
+  // (Burst's faux-hawk top is highest, the Crew Cut lowest).
+  assert.equal(new Set(await Promise.all(styles.map((style) => hash(style.src)))).size, 3);
+  const [burst, ivy, crew] = styles.map((style) => style.face.crown);
+  assert.ok(burst + 5 < ivy && ivy + 3 < crew, `crowns ${burst} < ${ivy} < ${crew}`);
+  for (const model of LOOK_MODELS.filter((item) => modelAudience(item) === "men")) {
+    const portraits = await Promise.all(ids.map((id) => hash(hairLookSrc(model.id, id))));
+    assert.equal(new Set(portraits).size, 3, `${model.id} has three different portraits`);
+  }
+  for (const style of styles) assert.ok(style.face.allow <= 0.04, `${style.id} stays close to the head`);
+});
+
+test("v21: Half-Up Half-Down keeps its face-framing front pieces", () => {
+  const halfup = HAIR_STYLES.find((item) => item.id === "halfup");
+  assert.equal(halfup.bangs, true, "front pieces fall over the upper forehead");
+  assert.deepEqual(halfup.for, ["women"]);
+  assert.equal(halfup.group, "up");
+  assert.ok(halfup.face.allow <= 0.1 && halfup.face.crown >= 80, "no cone: the crown stays low");
+});
+
+test("v21: service worker, page and imports all move together so phones get the new hair", async () => {
+  const sw = await readFile(new URL("../sw.js", import.meta.url), "utf8");
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const app = await readFile(new URL("../js/app.js", import.meta.url), "utf8");
+  const screen = await readFile(new URL("../js/makeup-screen.js", import.meta.url), "utf8");
+  // A new cache name clears the old portraits cached on the phone.
+  assert.match(sw, /const CACHE = "wingscrew-looks-v21"/);
+  assert.match(html, /css\/app\.css\?v=18/);
+  assert.match(sw, /"\.\/css\/app\.css\?v=18"/);
+  assert.match(app, /makeup-screen\.js\?v=3/);
+  assert.match(sw, /"\.\/js\/makeup-screen\.js\?v=3"/);
+  assert.match(screen, /hair\.js\?v=20/);
+  assert.match(screen, /face-fit\.js\?v=20/);
 });
