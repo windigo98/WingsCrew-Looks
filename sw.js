@@ -1,15 +1,15 @@
-const CACHE = "wingscrew-looks-v20";
+const CACHE = "wingscrew-looks-v21";
 
 const PRECACHE = [
   "./",
   "./index.html",
   "./manifest.json",
-  "./css/app.css?v=17",
-  "./js/app.js?v=20",
-  "./js/hair.js?v=19",
-  "./js/face-fit.js?v=19",
+  "./css/app.css?v=18",
+  "./js/app.js?v=21",
+  "./js/hair.js?v=20",
+  "./js/face-fit.js?v=20",
   "./css/makeup.css?v=2",
-  "./js/makeup-screen.js?v=2",
+  "./js/makeup-screen.js?v=3",
   "./js/makeup-engine.js",
   "./js/makeup-looks.js",
   "./assets/brand/logo.webp",

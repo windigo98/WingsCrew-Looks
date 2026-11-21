@@ -340,7 +340,7 @@ test("the Makeup tab is wired in and keeps the house rules", async () => {
   assert.match(app, /if \(look\.makeup\)/);
   assert.match(index, /css\/makeup\.css\?v=2/);
   assert.match(index, /<title>WingsCrew Looks<\/title>/);
-  for (const file of ["./css/makeup.css?v=2", "./js/makeup-screen.js?v=2", "./js/makeup-engine.js", "./js/makeup-looks.js"]) {
+  for (const file of ["./css/makeup.css?v=2", "./js/makeup-screen.js?v=3", "./js/makeup-engine.js", "./js/makeup-looks.js"]) {
     assert.ok(sw.includes(`"${file}"`), file);
     await stat(new URL(`../${file.slice(2).split("?")[0]}`, import.meta.url));
   }

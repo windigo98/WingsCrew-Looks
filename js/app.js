@@ -32,9 +32,9 @@ import {
   poseGuard,
   recolorHairPixels,
   tintedHairCanvas,
-} from "./hair.js?v=19";
-import { detectFace, hairMask } from "./face-fit.js?v=19";
-import { mountMakeup, openMakeupLook } from "./makeup-screen.js?v=2";
+} from "./hair.js?v=20";
+import { detectFace, hairMask } from "./face-fit.js?v=20";
+import { mountMakeup, openMakeupLook } from "./makeup-screen.js?v=3";
 
 const NAV = [
   ["dress", "Dress", icon("dress")],
